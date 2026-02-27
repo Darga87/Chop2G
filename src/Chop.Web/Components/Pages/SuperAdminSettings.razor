@@ -7,19 +7,11 @@
 
 <h1 class="mb-4">Настройки суперадмина</h1>
 
-@if (!string.IsNullOrWhiteSpace(_error))
-{
-    <div class="tw-alert-danger mb-4">@_error</div>
-}
-
-@if (!string.IsNullOrWhiteSpace(_success))
-{
-    <div class="tw-alert-success mb-4">@_success</div>
-}
+<FlashMessages Error="@_error" Success="@_success" />
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else
 {
@@ -328,3 +320,4 @@ else
             };
     }
 }
+

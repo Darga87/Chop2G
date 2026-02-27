@@ -1,4 +1,4 @@
-@page "/hr/guards"
+﻿@page "/hr/guards"
 @inject BackofficeApiClient Store
 @inject WebAuthSession Session
 @inject NavigationManager NavigationManager
@@ -155,52 +155,13 @@ else
                                 </div>
                             }
 
-                            <div class="mt-2 grid gap-2 md:grid-cols-12">
-                                @if (guard.OnShift)
+                            <div class="mt-2 text-sm text-ink-700">
+                                @(guard.OnShift ? "На смене" : "Вне смены")
+                                @if (guard.ShiftStartedAtUtc.HasValue)
                                 {
-                                    <div class="md:col-span-9 text-sm text-ink-700">
-                                        Охранник на смене
-                                        @if (guard.ShiftStartedAtUtc.HasValue)
-                                        {
-                                            <span>с @guard.ShiftStartedAtUtc.Value.ToLocalTime().ToString("g")</span>
-                                        }
-                                    </div>
-                                    <div class="md:col-span-3">
-                                        <button type="button" class="tw-btn-danger w-full" @onclick="() => EndShiftAsync(guard)" disabled="@_busy">Завершить смену</button>
-                                    </div>
+                                    <span> с @guard.ShiftStartedAtUtc.Value.ToLocalTime().ToString("g")</span>
                                 }
-                                else
-                                {
-                                    <div class="md:col-span-4">
-                                        <label class="block text-xs font-medium text-ink-700">Группа (опционально)</label>
-                                        <select
-                                            class="tw-select mt-1"
-                                            value="@GetStartGroupId(guard.Id)"
-                                            @onchange="e => SetStartGroupId(guard.Id, e.Value?.ToString())">
-                                            <option value="">Без группы</option>
-                                            @foreach (var group in _groups)
-                                            {
-                                                <option value="@group.Id.ToString("D")">@group.Name</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    <div class="md:col-span-4">
-                                        <label class="block text-xs font-medium text-ink-700">Пост (опционально)</label>
-                                        <select
-                                            class="tw-select mt-1"
-                                            value="@GetStartPointId(guard.Id)"
-                                            @onchange="e => SetStartPointId(guard.Id, e.Value?.ToString())">
-                                            <option value="">Без поста</option>
-                                            @foreach (var point in _points)
-                                            {
-                                                <option value="@point.Id.ToString("D")">@point.Label (@point.Code)</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    <div class="md:col-span-4 flex items-end">
-                                        <button type="button" class="tw-btn-primary w-full" @onclick="() => StartShiftAsync(guard)" disabled="@_busy || !guard.IsActive">Начать смену</button>
-                                    </div>
-                                }
+                                <span class="ml-2 text-ink-500">(управление сменами во вкладке "Смены")</span>
                             </div>
                         </td>
                     </tr>
@@ -219,10 +180,6 @@ else
     private string _status = "all";
     private bool _onShiftOnly;
     private IReadOnlyCollection<GuardItemDto> _guards = [];
-    private IReadOnlyCollection<GuardGroupItemDto> _groups = [];
-    private IReadOnlyCollection<OperatorPointItemDto> _points = [];
-    private readonly Dictionary<Guid, string?> _startGroupByGuard = [];
-    private readonly Dictionary<Guid, string?> _startPointByGuard = [];
     private string? _newGuardFullName;
     private string? _newGuardCallSign;
     private string? _newGuardLogin;
@@ -260,8 +217,6 @@ else
         try
         {
             _guards = await Store.GetGuardsAsync(_search, _status, _onShiftOnly, CancellationToken.None);
-            _groups = await Store.GetGuardGroupsAsync(CancellationToken.None);
-            _points = await Store.GetPointsAsync(null, "all", includeInactive: false, CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -398,87 +353,4 @@ else
         }
     }
 
-    private async Task StartShiftAsync(GuardItemDto guard)
-    {
-        _error = null;
-        _success = null;
-        _busy = true;
-        try
-        {
-            await Store.StartShiftAsync(new StartGuardShiftRequestDto
-            {
-                GuardUserId = guard.Id.ToString("D"),
-                GuardGroupId = ParseNullableGuid(GetStartGroupId(guard.Id)),
-                SecurityPointId = ParseNullableGuid(GetStartPointId(guard.Id)),
-            }, CancellationToken.None);
-            _success = $"Смена открыта: {guard.FullName}.";
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
-            {
-                return;
-            }
-
-            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private async Task EndShiftAsync(GuardItemDto guard)
-    {
-        _error = null;
-        _success = null;
-        _busy = true;
-        try
-        {
-            await Store.EndShiftAsync(guard.Id.ToString("D"), CancellationToken.None);
-            _success = $"Смена завершена: {guard.FullName}.";
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
-            {
-                return;
-            }
-
-            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
-        }
-        finally
-        {
-            _busy = false;
-        }
-    }
-
-    private string? GetStartGroupId(Guid guardId)
-    {
-        _startGroupByGuard.TryGetValue(guardId, out var value);
-        return value;
-    }
-
-    private void SetStartGroupId(Guid guardId, string? value)
-    {
-        _startGroupByGuard[guardId] = value;
-    }
-
-    private string? GetStartPointId(Guid guardId)
-    {
-        _startPointByGuard.TryGetValue(guardId, out var value);
-        return value;
-    }
-
-    private void SetStartPointId(Guid guardId, string? value)
-    {
-        _startPointByGuard[guardId] = value;
-    }
-
-    private static Guid? ParseNullableGuid(string? value)
-    {
-        return Guid.TryParse(value, out var parsed) ? parsed : null;
-    }
 }

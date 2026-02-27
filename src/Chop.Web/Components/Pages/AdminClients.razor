@@ -7,15 +7,7 @@
 
 <h1 class="mb-4">Клиенты (админ)</h1>
 
-@if (!string.IsNullOrWhiteSpace(_error))
-{
-    <div class="tw-alert-danger mb-4">@_error</div>
-}
-
-@if (!string.IsNullOrWhiteSpace(_success))
-{
-    <div class="tw-alert-success mb-4">@_success</div>
-}
+<FlashMessages Error="@_error" Success="@_success" />
 
 <div class="tw-card mb-4">
     <div class="tw-card-body">
@@ -171,7 +163,7 @@
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else
 {
@@ -594,3 +586,4 @@ else
         public bool IsPrimary { get; set; }
     }
 }
+

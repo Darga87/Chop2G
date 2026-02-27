@@ -3,57 +3,49 @@
 @inject WebAuthSession Session
 @inject NavigationManager NavigationManager
 
-<PageTitle>Клиенты (менеджер)</PageTitle>
+<PageTitle>пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)</PageTitle>
 
-<h1 class="mb-4">Сводка клиентов (менеджер)</h1>
+<h1 class="mb-4">пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)</h1>
 
 <div class="tw-alert-info mb-4">
-    Режим только чтения: менеджер видит клиентов и биллинг-сводку без возможности редактирования.
+    пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
 </div>
 
 @if (!string.IsNullOrWhiteSpace(_error))
 {
-    <div class="tw-alert-danger mb-4">@_error</div>
+    <FlashMessages Error="@_error" SuccessClass="" />
 }
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else
-{
-    <div class="tw-card mb-4">
-        <div class="tw-card-body">
-            <div class="grid gap-3 md:grid-cols-12">
-                <div class="md:col-span-6">
-                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
-                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск клиента" />
-                </div>
-                <div class="md:col-span-4">
-                    <label class="block text-sm font-medium text-ink-700">Биллинг</label>
-                    <select class="tw-select mt-1" @bind="_billing">
-                        <option value="all">Все статусы биллинга</option>
-                        <option value="ACTIVE">Активен</option>
-                        <option value="DEBT">Долг</option>
-                        <option value="PAUSED">Приостановлен</option>
-                    </select>
-                </div>
-                <div class="md:col-span-2 flex items-end">
-                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
-                </div>
-            </div>
+{    <FilterToolbar OnRefresh="ReloadAsync">
+        <div class="md:col-span-6">
+            <label class="block text-sm font-medium text-ink-700">пїЅпїЅпїЅпїЅпїЅ</label>
+            <input class="tw-input mt-1" @bind="_search" placeholder="пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" />
         </div>
-    </div>
+        <div class="md:col-span-4">
+            <label class="block text-sm font-medium text-ink-700">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</label>
+            <select class="tw-select mt-1" @bind="_billing">
+                <option value="all">пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
+                <option value="ACTIVE">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
+                <option value="DEBT">пїЅпїЅпїЅпїЅ</option>
+                <option value="PAUSED">пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
+            </select>
+        </div>
+    </FilterToolbar>
 
     <table class="tw-table">
         <thead>
             <tr>
-                <th class="tw-th">Клиент</th>
-                <th class="tw-th">Телефон</th>
-                <th class="tw-th">Тариф</th>
-                <th class="tw-th">Биллинг</th>
-                <th class="tw-th">Последний платеж</th>
-                <th class="tw-th">Долг</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">пїЅпїЅпїЅпїЅ</th>
             </tr>
         </thead>
         <tbody>
@@ -65,7 +57,7 @@ else
                     <td class="tw-td">@client.Tariff</td>
                     <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
                     <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
-                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "ДА" : "НЕТ")</td>
+                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "пїЅпїЅ" : "пїЅпїЅпїЅ")</td>
                 </tr>
             }
         </tbody>
@@ -122,9 +114,11 @@ else
     private static string TranslateBilling(string status) =>
         status switch
         {
-            "ACTIVE" => "Активен",
-            "DEBT" => "Долг",
-            "PAUSED" => "Приостановлен",
+            "ACTIVE" => "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
+            "DEBT" => "пїЅпїЅпїЅпїЅ",
+            "PAUSED" => "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
             _ => status,
         };
 }
+
+

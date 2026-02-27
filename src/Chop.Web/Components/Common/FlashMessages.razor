@@ -1,0 +1,23 @@
+@if (!string.IsNullOrWhiteSpace(Error))
+{
+    <div class="tw-alert-danger @ErrorClass">@Error</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(Success))
+{
+    <div class="tw-alert-success @SuccessClass">@Success</div>
+}
+
+@code {
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public string? Success { get; set; }
+
+    [Parameter]
+    public string? ErrorClass { get; set; } = "mb-4";
+
+    [Parameter]
+    public string? SuccessClass { get; set; } = "mb-4";
+}

@@ -10,11 +10,11 @@
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else if (!string.IsNullOrWhiteSpace(_error))
 {
-    <div class="tw-alert-danger">@_error</div>
+    <FlashMessages Error="@_error" ErrorClass="" />
 }
 else
 {
@@ -438,3 +438,5 @@ else
             _ => status,
         };
 }
+
+

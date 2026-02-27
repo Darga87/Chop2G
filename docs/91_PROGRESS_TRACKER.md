@@ -1,4 +1,4 @@
-﻿# 91_PROGRESS_TRACKER
+# 91_PROGRESS_TRACKER
 
 Цель: управленческий трекер реализации — что уже сделано и что предстоит сделать.
 
@@ -6,7 +6,7 @@
 - Фиксируем только статус реализации и ближайшие шаги.
 - Без логов прогонов тестов и технического шума.
 - Новые идеи и неформализованные задачи добавляем в отдельный backlog-блок.
-- Последнее обновление: 2026-02-25 (Task-008: применён UI-kit B + добавлено переключение тем A/B/C)
+- Последнее обновление: 2026-02-27 (Task-008: добавлен CI шаг сборки Tailwind CSS + выполнен аудит bootstrap classnames)
 - Технический журнал проверок: `docs/92_TEST_LOG.md`
 
 ## Легенда
@@ -152,14 +152,16 @@
 - [x] Добавлен UI-переключатель темы в шапке Web Console (`src/Chop.Web/Components/Layout/MainLayout.razor`)
 - [x] Добавлен dark-theme bridge для legacy utility-классов (selected rows / alert badges), чтобы убрать белые блоки и плохой контраст
 ### Осталось
-- [ ] Добавить CI шаг сборки CSS (`npm ci && npm run build:css`) чтобы исключить “забыли собрать CSS”
+- [x] Добавить CI шаг сборки CSS (`npm ci && npm run build:css`) чтобы исключить “забыли собрать CSS”
+- [x] Начата декомпозиция повторяющегося UI: добавлены переиспользуемые Razor-компоненты `LoadingMessage` и `FlashMessages`, подключены на ключевых Web-страницах
+- [x] Добавлен переиспользуемый `FilterToolbar` и применён в страницах `operator/forces`, `operator/incidents`, `manager/clients`, `superadmin/audit`
 - [ ] Вынести повторяющиеся UI блоки в Razor-компоненты (таблицы/фильтры/плашки) для контроля utility-sprawl
 - [ ] Tailwind hardening: safelist для динамических классов (только при необходимости, документировать причины)
-- [ ] Audit на “везде Tailwind”: убедиться, что в `src/**` нет bootstrap classnames, которые маскируют реальные проблемы (постепенная чистка)
+- [x] Audit на “везде Tailwind”: убраны legacy bootstrap classnames из `src/**` (в т.ч. mobile template pages/layout)
 - [ ] Зафиксировать финальный Theme Pack (A/B/C) и перенести выбранные токены из `docs/95_UI_KIT.md` в `styles/tailwind.css`
 ### Риски (фиксируем, чтобы не забыть)
 - [ ] Размер CSS / performance (Web + MAUI WebView) -> ограничивать content globs, избегать dynamic classnames
-- [ ] Node/npm как build-dependency -> зафиксировать в CI и документации
+- [x] Node/npm как build-dependency -> зафиксировано в CI (`.github/workflows/tailwind-css.yml`)
 - [ ] MAUI safe-area/quirks -> smoke-check перед релизом Mobile
 - [ ] Возврат Bootstrap (случайно) -> блокировать добавление bootstrap ссылок/папок при review
 См. `docs/93_TAILWIND_PLAYBOOK.md`.
@@ -377,6 +379,7 @@
 - [x] HR UI: добавлено создание охранников на `/hr/guards`
 - [x] HR UI: редактирование профиля охранника (`ФИО/позывной/телефон/email`) через `PUT /api/hr/guards/{id}`
 - [x] HR UI: быстрые действия по сменам на `/hr/guards` (старт/завершение смены, выбор группы/поста при старте)
+- [x] UX cleanup: actions по сменам удалены из `/hr/guards`, управление сменами оставлено только во вкладке `/hr/shifts`
 - [x] Admin UI: создание/редактирование клиентов (базовый CRUD: профиль, контакты, HOME-адрес, billing-поля)
 - [x] Admin UI: расширенный CRUD клиентов (мульти-телефоны и мульти-адреса в форме + загрузка деталей клиента `GET /api/admin/clients/{id}`)
 - [x] SuperAdmin UI: hardening управления учетками/ролями (`/superadmin/users`) — локализация статусов, блокировка self-deactivate, защита от снятия последней/критичной роли, добавление только отсутствующих ролей

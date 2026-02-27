@@ -12,27 +12,19 @@
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else if (!string.IsNullOrWhiteSpace(_error))
 {
-    <div class="tw-alert-danger">@_error</div>
+    <FlashMessages Error="@_error" ErrorClass="" />
 }
 else
-{
-    <div class="tw-card mb-4">
-        <div class="tw-card-body">
-            <div class="grid gap-3 md:grid-cols-6">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-ink-700">Статус</label>
-                    <input class="tw-input mt-1" @bind="_statusFilter" placeholder="ACKED/CANCELED/..." />
-                </div>
-                <div class="md:col-span-1 flex items-end">
-                    <button class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
-                </div>
-            </div>
+{    <FilterToolbar OnRefresh="ReloadAsync" GridClass="grid gap-3 md:grid-cols-6" ActionColumnClass="md:col-span-1 flex items-end">
+        <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-ink-700">Статус</label>
+            <input class="tw-input mt-1" @bind="_statusFilter" placeholder="ACKED/CANCELED/..." />
         </div>
-    </div>
+    </FilterToolbar>
 
     <table class="tw-table">
         <thead>
@@ -177,4 +169,7 @@ else
             _ => status,
         };
 }
+
+
+
 

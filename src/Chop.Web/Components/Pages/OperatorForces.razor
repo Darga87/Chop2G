@@ -9,42 +9,34 @@
 
 @if (_loading)
 {
-    <div class="tw-alert-info">Загрузка...</div>
+    <LoadingMessage />
 }
 else if (!string.IsNullOrWhiteSpace(_error))
 {
-    <div class="tw-alert-danger">@_error</div>
+    <FlashMessages Error="@_error" ErrorClass="" />
 }
 else
-{
-    <div class="tw-card mb-4">
-        <div class="tw-card-body">
-            <div class="grid gap-3 md:grid-cols-12">
-                <div class="md:col-span-4">
-                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
-                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по имени, позывному, подразделению" />
-                </div>
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-ink-700">Доступность</label>
-                    <select class="tw-select mt-1" @bind="_availability">
-                        <option value="all">Любая</option>
-                        <option value="AVAILABLE">Доступен</option>
-                        <option value="BUSY">Занят</option>
-                        <option value="OFFLINE">Оффлайн</option>
-                    </select>
-                </div>
-                <div class="md:col-span-3 flex items-end">
-                    <label class="flex items-center gap-2 text-sm text-ink-700">
-                        <input id="onlineOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_onlineOnly" />
-                        <span>Только онлайн</span>
-                    </label>
-                </div>
-                <div class="md:col-span-2 flex items-end">
-                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
-                </div>
-            </div>
+{    <FilterToolbar OnRefresh="ReloadAsync">
+        <div class="md:col-span-4">
+            <label class="block text-sm font-medium text-ink-700">Поиск</label>
+            <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по имени, позывному, подразделению" />
         </div>
-    </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-medium text-ink-700">Доступность</label>
+            <select class="tw-select mt-1" @bind="_availability">
+                <option value="all">Любая</option>
+                <option value="AVAILABLE">Доступен</option>
+                <option value="BUSY">Занят</option>
+                <option value="OFFLINE">Оффлайн</option>
+            </select>
+        </div>
+        <div class="md:col-span-3 flex items-end">
+            <label class="flex items-center gap-2 text-sm text-ink-700">
+                <input id="onlineOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_onlineOnly" />
+                <span>Только онлайн</span>
+            </label>
+        </div>
+    </FilterToolbar>
 
     <table class="tw-table">
         <thead>
@@ -127,5 +119,8 @@ else
         }
     }
 }
+
+
+
 
 
