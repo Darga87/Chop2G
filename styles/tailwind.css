@@ -1,0 +1,326 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Default theme: UI-kit B (Graphite + Lime) */
+    --ui-bg: #0f1115;
+    --ui-surface-1: #171a21;
+    --ui-surface-2: #1e2430;
+    --ui-text: #f3f5f7;
+    --ui-text-muted: #a2acba;
+    --ui-primary: #84cc16;
+    --ui-primary-strong: #65a30d;
+    --ui-success: #22c55e;
+    --ui-warning: #f59e0b;
+    --ui-danger: #dc2626;
+    --ui-info: #38bdf8;
+    --ui-border: #2a3140;
+    --ui-input-bg: #141923;
+    --ui-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  }
+
+  body.theme-a {
+    --ui-bg: #0b1220;
+    --ui-surface-1: #111a2b;
+    --ui-surface-2: #182338;
+    --ui-text: #e6edf7;
+    --ui-text-muted: #93a4bd;
+    --ui-primary: #22d3ee;
+    --ui-primary-strong: #0891b2;
+    --ui-success: #22c55e;
+    --ui-warning: #f59e0b;
+    --ui-danger: #ef4444;
+    --ui-info: #38bdf8;
+    --ui-border: #253650;
+    --ui-input-bg: #101a2e;
+  }
+
+  body.theme-b {
+    --ui-bg: #0f1115;
+    --ui-surface-1: #171a21;
+    --ui-surface-2: #1e2430;
+    --ui-text: #f3f5f7;
+    --ui-text-muted: #a2acba;
+    --ui-primary: #84cc16;
+    --ui-primary-strong: #65a30d;
+    --ui-success: #22c55e;
+    --ui-warning: #f59e0b;
+    --ui-danger: #dc2626;
+    --ui-info: #38bdf8;
+    --ui-border: #2a3140;
+    --ui-input-bg: #141923;
+  }
+
+  body.theme-c {
+    --ui-bg: #0a1630;
+    --ui-surface-1: #10213f;
+    --ui-surface-2: #16305a;
+    --ui-text: #f8fafc;
+    --ui-text-muted: #a7b7d1;
+    --ui-primary: #f59e0b;
+    --ui-primary-strong: #d97706;
+    --ui-success: #16a34a;
+    --ui-warning: #f59e0b;
+    --ui-danger: #dc2626;
+    --ui-info: #38bdf8;
+    --ui-border: #244372;
+    --ui-input-bg: #0f2243;
+  }
+
+  html {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+
+  body {
+    background: var(--ui-bg);
+    color: var(--ui-text);
+  }
+
+  h1 { @apply text-2xl font-semibold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+  h3 { @apply text-lg font-semibold tracking-tight; }
+
+  a {
+    color: var(--ui-info);
+    text-underline-offset: 2px;
+  }
+  a:hover { color: var(--ui-primary); }
+
+  /* Theme bridge for legacy utility classes used across pages.
+     This keeps old markup readable while we progressively move to pure tw-* components. */
+  body.theme-a .bg-white,
+  body.theme-b .bg-white,
+  body.theme-c .bg-white {
+    background-color: color-mix(in srgb, var(--ui-surface-1) 94%, #ffffff 6%) !important;
+  }
+
+  body.theme-a .bg-ink-50,
+  body.theme-b .bg-ink-50,
+  body.theme-c .bg-ink-50 {
+    background-color: color-mix(in srgb, var(--ui-surface-2) 82%, #ffffff 18%) !important;
+  }
+
+  body.theme-a .bg-ink-100,
+  body.theme-b .bg-ink-100,
+  body.theme-c .bg-ink-100 {
+    background-color: color-mix(in srgb, var(--ui-surface-2) 88%, #ffffff 12%) !important;
+  }
+
+  /* Legacy semantic tints used in badges/selected rows */
+  body.theme-a .bg-sky-50,
+  body.theme-b .bg-sky-50,
+  body.theme-c .bg-sky-50 {
+    background-color: color-mix(in srgb, var(--ui-info) 20%, var(--ui-surface-1)) !important;
+  }
+
+  body.theme-a .bg-red-50,
+  body.theme-b .bg-red-50,
+  body.theme-c .bg-red-50 {
+    background-color: color-mix(in srgb, var(--ui-danger) 18%, var(--ui-surface-1)) !important;
+  }
+
+  body.theme-a .bg-amber-50,
+  body.theme-b .bg-amber-50,
+  body.theme-c .bg-amber-50 {
+    background-color: color-mix(in srgb, var(--ui-warning) 18%, var(--ui-surface-1)) !important;
+  }
+
+  body.theme-a .odd\:bg-white:nth-child(odd),
+  body.theme-b .odd\:bg-white:nth-child(odd),
+  body.theme-c .odd\:bg-white:nth-child(odd) {
+    background-color: color-mix(in srgb, var(--ui-surface-1) 94%, #ffffff 6%) !important;
+  }
+
+  body.theme-a .even\:bg-ink-50:nth-child(even),
+  body.theme-b .even\:bg-ink-50:nth-child(even),
+  body.theme-c .even\:bg-ink-50:nth-child(even) {
+    background-color: color-mix(in srgb, var(--ui-surface-2) 82%, #ffffff 18%) !important;
+  }
+
+  body.theme-a .text-ink-900,
+  body.theme-b .text-ink-900,
+  body.theme-c .text-ink-900 {
+    color: var(--ui-text) !important;
+  }
+
+  body.theme-a .text-ink-800,
+  body.theme-a .text-ink-700,
+  body.theme-a .text-ink-600,
+  body.theme-a .text-ink-500,
+  body.theme-b .text-ink-800,
+  body.theme-b .text-ink-700,
+  body.theme-b .text-ink-600,
+  body.theme-b .text-ink-500,
+  body.theme-c .text-ink-800,
+  body.theme-c .text-ink-700,
+  body.theme-c .text-ink-600,
+  body.theme-c .text-ink-500 {
+    color: var(--ui-text-muted) !important;
+  }
+
+  body.theme-a .text-sky-800,
+  body.theme-a .text-red-700,
+  body.theme-a .text-amber-800,
+  body.theme-b .text-sky-800,
+  body.theme-b .text-red-700,
+  body.theme-b .text-amber-800,
+  body.theme-c .text-sky-800,
+  body.theme-c .text-red-700,
+  body.theme-c .text-amber-800 {
+    color: var(--ui-text) !important;
+  }
+
+  body.theme-a .border-ink-300,
+  body.theme-a .border-ink-200,
+  body.theme-a .border-ink-100,
+  body.theme-b .border-ink-300,
+  body.theme-b .border-ink-200,
+  body.theme-b .border-ink-100,
+  body.theme-c .border-ink-300,
+  body.theme-c .border-ink-200,
+  body.theme-c .border-ink-100 {
+    border-color: var(--ui-border) !important;
+  }
+}
+
+@layer components {
+  /* MAUI Blazor: keep status bar / notch space visible on iOS. */
+  .status-bar-safe-area {
+    height: env(safe-area-inset-top);
+    background: var(--ui-surface-2);
+  }
+
+  .tw-page {
+    @apply min-h-screen;
+    background:
+      radial-gradient(1200px 800px at 100% -10%, color-mix(in srgb, var(--ui-primary) 16%, transparent), transparent 70%),
+      var(--ui-bg);
+    color: var(--ui-text);
+  }
+
+  .tw-shell {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .tw-shell-sidebar {
+    background: var(--ui-surface-2);
+    color: var(--ui-text);
+  }
+
+  .tw-shell-sidebar-muted {
+    color: var(--ui-text-muted);
+  }
+
+  .tw-shell-header {
+    border-bottom: 1px solid var(--ui-border);
+    background: color-mix(in srgb, var(--ui-surface-1) 86%, transparent);
+    color: var(--ui-text);
+  }
+
+  .tw-card {
+    @apply rounded-xl;
+    border: 1px solid var(--ui-border);
+    background: color-mix(in srgb, var(--ui-surface-1) 94%, #ffffff 6%);
+    box-shadow: var(--ui-shadow);
+  }
+
+  .tw-card-body {
+    @apply p-4 sm:p-6;
+  }
+
+  .tw-input {
+    @apply w-full rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-input-bg);
+    color: var(--ui-text);
+    caret-color: var(--ui-primary);
+  }
+  .tw-input:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 25%, transparent); }
+
+  .tw-select {
+    @apply w-full rounded-md px-3 py-2 text-sm shadow-sm focus:outline-none;
+    border: 1px solid var(--ui-border);
+    background: var(--ui-input-bg);
+    color: var(--ui-text);
+  }
+  .tw-select:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 25%, transparent); }
+
+  .tw-btn {
+    @apply inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium;
+    @apply border shadow-sm;
+    border-color: transparent;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .tw-btn-primary { @apply tw-btn; background: var(--ui-primary); color: #10150d; }
+  .tw-btn-primary:hover { background: var(--ui-primary-strong); color: #fff; }
+  .tw-btn-secondary { @apply tw-btn; background: var(--ui-surface-2); color: var(--ui-text); border-color: var(--ui-border); }
+  .tw-btn-secondary:hover { background: color-mix(in srgb, var(--ui-surface-2) 80%, #ffffff 20%); }
+  .tw-btn-outline { @apply tw-btn; border-color: var(--ui-border); background: transparent; color: var(--ui-text); }
+  .tw-btn-outline:hover { background: color-mix(in srgb, var(--ui-surface-2) 50%, transparent); }
+  .tw-btn-outline-dark { @apply tw-btn; border-color: var(--ui-border); background: transparent; color: var(--ui-text); }
+  .tw-btn-outline-dark:hover { background: color-mix(in srgb, var(--ui-surface-1) 60%, transparent); }
+  .tw-btn-danger { @apply tw-btn; background: var(--ui-danger); color: #fff; }
+  .tw-btn-danger:hover { filter: brightness(0.92); }
+  .tw-btn-warning { @apply tw-btn; background: var(--ui-warning); color: #111827; }
+
+  .tw-table {
+    @apply w-full border-separate border-spacing-0 overflow-hidden rounded-xl;
+    border: 1px solid var(--ui-border);
+    background: color-mix(in srgb, var(--ui-surface-1) 94%, #ffffff 6%);
+  }
+
+  .tw-th {
+    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide;
+    background: color-mix(in srgb, var(--ui-surface-2) 88%, transparent);
+    color: var(--ui-text-muted);
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .tw-td {
+    @apply px-3 py-2 text-sm border-b;
+    color: var(--ui-text);
+    border-color: color-mix(in srgb, var(--ui-border) 70%, transparent);
+  }
+
+  .tw-alert {
+    @apply rounded-lg border px-3 py-2 text-sm;
+  }
+
+  .tw-alert-danger { @apply tw-alert; border-color: color-mix(in srgb, var(--ui-danger) 40%, transparent); background: color-mix(in srgb, var(--ui-danger) 16%, transparent); color: #ffd4d4; }
+  .tw-alert-success { @apply tw-alert; border-color: color-mix(in srgb, var(--ui-success) 40%, transparent); background: color-mix(in srgb, var(--ui-success) 16%, transparent); color: #c7ffd9; }
+  .tw-alert-warning { @apply tw-alert; border-color: color-mix(in srgb, var(--ui-warning) 40%, transparent); background: color-mix(in srgb, var(--ui-warning) 16%, transparent); color: #ffe8b3; }
+  .tw-alert-info { @apply tw-alert; border-color: color-mix(in srgb, var(--ui-info) 40%, transparent); background: color-mix(in srgb, var(--ui-info) 16%, transparent); color: #cceeff; }
+
+  /* Ensure action buttons inside alerts are always readable against tinted backgrounds. */
+  .tw-alert .tw-btn-outline {
+    border-color: color-mix(in srgb, var(--ui-border) 80%, #ffffff 20%);
+    background: color-mix(in srgb, var(--ui-surface-2) 72%, transparent);
+    color: var(--ui-text);
+  }
+  .tw-alert .tw-btn-outline:hover {
+    background: color-mix(in srgb, var(--ui-surface-2) 88%, #ffffff 12%);
+  }
+
+  .tw-alert .tw-btn-primary {
+    border-color: color-mix(in srgb, var(--ui-primary) 70%, #ffffff 30%);
+    background: var(--ui-primary-strong);
+    color: #ffffff;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-primary) 24%, transparent) inset;
+  }
+  .tw-alert .tw-btn-primary:hover {
+    filter: brightness(1.08);
+  }
+
+  /* Minimal Blazor error UI */
+  #blazor-error-ui {
+    @apply hidden fixed bottom-0 left-0 w-full border-t px-4 py-3 text-sm shadow;
+    border-color: color-mix(in srgb, var(--ui-warning) 40%, transparent);
+    background: color-mix(in srgb, var(--ui-warning) 18%, #111);
+    color: var(--ui-text);
+    z-index: 1000;
+  }
+  #blazor-error-ui .dismiss { @apply absolute right-3 top-3 cursor-pointer; }
+}

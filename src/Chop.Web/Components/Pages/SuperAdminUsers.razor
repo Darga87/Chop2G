@@ -1,0 +1,564 @@
+@page "/superadmin/users"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Пользователи backoffice</PageTitle>
+
+<h1 class="mb-4">Пользователи backoffice</h1>
+
+@if (!string.IsNullOrWhiteSpace(_toastMessage))
+{
+    <div class="fixed right-4 top-4 z-50 max-w-md shadow-lg">
+        <div class="@(_toastIsError ? "tw-alert-danger" : "tw-alert-success")">
+            <div class="flex items-center justify-between gap-3">
+                <span>@_toastMessage</span>
+                <button type="button" class="tw-btn-outline" @onclick="HideToast">OK</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="tw-alert-danger mb-4">@_error</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_success))
+    {
+        <div class="tw-alert-success mb-4">@_success</div>
+    }
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Логин, email, телефон" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Роль</label>
+                    <select class="tw-select mt-1" @bind="_roleFilter">
+                        @foreach (var role in FilterRoles)
+                        {
+                            <option value="@role">@TranslateRoleFilter(role)</option>
+                        }
+                    </select>
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Активность</label>
+                    <select class="tw-select mt-1" @bind="_activeFilter">
+                        <option value="all">Все</option>
+                        <option value="active">Только активные</option>
+                        <option value="inactive">Только неактивные</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync" disabled="@_busyAction">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="mb-2 text-sm font-semibold text-ink-900">Создать пользователя</div>
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Логин</label>
+                    <input class="tw-input mt-1" @bind="_createLogin" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Пароль</label>
+                    <input class="tw-input mt-1" type="password" @bind="_createPassword" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Email</label>
+                    <input class="tw-input mt-1" @bind="_createEmail" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Телефон</label>
+                    <input class="tw-input mt-1" @bind="_createPhone" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Первичная роль</label>
+                    <select class="tw-select mt-1" @bind="_createRole">
+                        @foreach (var role in ManagedRoles)
+                        {
+                            <option value="@role">@TranslateRole(role)</option>
+                        }
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-primary w-full" @onclick="CreateUserAsync" disabled="@_busyAction">Создать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Логин</th>
+                <th class="tw-th">Контакты</th>
+                <th class="tw-th">Статус</th>
+                <th class="tw-th">Роли</th>
+                <th class="tw-th">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in _users)
+            {
+                <tr class="odd:bg-white even:bg-ink-50 align-top">
+                    <td class="tw-td whitespace-nowrap">
+                        <div class="font-semibold text-ink-900">@user.Login</div>
+                        <div class="text-xs text-ink-600">@user.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                    </td>
+                    <td class="tw-td">
+                        <div>@(string.IsNullOrWhiteSpace(user.Email) ? "-" : user.Email)</div>
+                        <div class="text-xs text-ink-600">@(string.IsNullOrWhiteSpace(user.Phone) ? "-" : user.Phone)</div>
+                    </td>
+                    <td class="tw-td whitespace-nowrap">@TranslateUserStatus(user.IsActive)</td>
+                    <td class="tw-td">
+                        <div class="flex flex-wrap gap-1">
+                            @foreach (var role in user.Roles.OrderBy(x => x))
+                            {
+                                <span class="rounded-md border border-ink-300 bg-white px-2 py-1 text-xs text-ink-800">@TranslateRole(role)</span>
+                            }
+                        </div>
+                    </td>
+                    <td class="tw-td">
+                        <div class="flex flex-wrap gap-2">
+                            <select
+                                class="tw-select w-40"
+                                value="@GetRoleToAdd(user.Id)"
+                                disabled="@_busyAction"
+                                @onchange="e => SetRoleToAdd(user.Id, e.Value?.ToString())">
+                                @foreach (var role in GetAvailableRolesToAdd(user))
+                                {
+                                    <option value="@role">@TranslateRole(role)</option>
+                                }
+                                @if (!GetAvailableRolesToAdd(user).Any())
+                                {
+                                    <option value="">Нет доступных ролей</option>
+                                }
+                            </select>
+                            <button type="button" class="tw-btn-outline" @onclick="() => AddRoleAsync(user.Id)" disabled="@(_busyAction || !GetAvailableRolesToAdd(user).Any())">Добавить роль</button>
+                            <button type="button" class="@(user.IsActive ? "tw-btn-danger" : "tw-btn-secondary")" @onclick="() => RequestToggleActive(user.Id)" disabled="@(_busyAction || IsSelf(user))">
+                                @(user.IsActive ? "Деактивировать" : "Активировать")
+                            </button>
+                        </div>
+                        @if (IsSelf(user))
+                        {
+                            <div class="mt-2 text-xs text-ink-600">Собственную учетную запись нельзя деактивировать.</div>
+                        }
+                        @if (_confirmToggleUserId == user.Id)
+                        {
+                            <div class="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                                <span>Подтвердите смену активности пользователя.</span>
+                                <button type="button" class="tw-btn-warning" @onclick="() => ConfirmToggleActiveAsync(user.Id)" disabled="@_busyAction">Подтвердить</button>
+                                <button type="button" class="tw-btn-outline" @onclick="ClearDangerConfirmations" disabled="@_busyAction">Отмена</button>
+                            </div>
+                        }
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach (var role in user.Roles.OrderBy(x => x))
+                            {
+                                <button
+                                    type="button"
+                                    class="tw-btn-outline"
+                                    @onclick="() => RequestRemoveRole(user.Id, role)"
+                                    disabled="@(_busyAction || !CanRemoveRole(user, role))">Снять @TranslateRole(role)</button>
+                            }
+                        </div>
+                        @if (user.Roles.Count <= 1)
+                        {
+                            <div class="mt-2 text-xs text-ink-600">Нельзя снять последнюю роль пользователя.</div>
+                        }
+                        @if (IsSelf(user) && user.Roles.Contains("SUPERADMIN", StringComparer.OrdinalIgnoreCase))
+                        {
+                            <div class="mt-1 text-xs text-ink-600">Нельзя снять роль SUPERADMIN у себя.</div>
+                        }
+                        @if (_confirmRemoveRoleUserId == user.Id && !string.IsNullOrWhiteSpace(_confirmRemoveRole))
+                        {
+                            <div class="mt-2 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                                <span>Подтвердите снятие роли <b>@TranslateRole(_confirmRemoveRole)</b>.</span>
+                                <button type="button" class="tw-btn-warning" @onclick="ConfirmRemoveRoleAsync" disabled="@_busyAction">Подтвердить</button>
+                                <button type="button" class="tw-btn-outline" @onclick="ClearDangerConfirmations" disabled="@_busyAction">Отмена</button>
+                            </div>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly string[] ManagedRoles = ["HR", "OPERATOR", "MANAGER", "ACCOUNTANT", "ADMIN", "SUPERADMIN"];
+    private static readonly string[] FilterRoles = ["all", "HR", "OPERATOR", "MANAGER", "ACCOUNTANT", "ADMIN", "SUPERADMIN"];
+
+    private readonly Dictionary<Guid, string> _roleToAdd = [];
+    private bool _loading = true;
+    private bool _busyAction;
+    private string? _error;
+    private string? _success;
+    private Guid? _confirmToggleUserId;
+    private Guid? _confirmRemoveRoleUserId;
+    private string? _confirmRemoveRole;
+    private string? _toastMessage;
+    private bool _toastIsError;
+    private int _toastVersion;
+
+    private string? _search;
+    private string _roleFilter = "all";
+    private string _activeFilter = "all";
+    private IReadOnlyCollection<BackofficeUserItemDto> _users = [];
+
+    private string _createLogin = string.Empty;
+    private string _createPassword = string.Empty;
+    private string? _createEmail;
+    private string? _createPhone;
+    private string _createRole = "HR";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.SuperAdminOnlyRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _success = null;
+
+        try
+        {
+            var active = _activeFilter switch
+            {
+                "active" => true,
+                "inactive" => false,
+                _ => (bool?)null,
+            };
+
+            _users = await Store.GetSuperAdminUsersAsync(_search, _roleFilter, active, CancellationToken.None);
+            foreach (var user in _users)
+            {
+                if (!_roleToAdd.ContainsKey(user.Id))
+                {
+                    _roleToAdd[user.Id] = "HR";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string GetRoleToAdd(Guid userId)
+    {
+        if (_roleToAdd.TryGetValue(userId, out var role))
+        {
+            return role;
+        }
+
+        var user = _users.FirstOrDefault(x => x.Id == userId);
+        var fallback = user is null ? "HR" : GetAvailableRolesToAdd(user).FirstOrDefault() ?? string.Empty;
+        _roleToAdd[userId] = fallback;
+        return fallback;
+    }
+
+    private void SetRoleToAdd(Guid userId, string? role)
+    {
+        _roleToAdd[userId] = string.IsNullOrWhiteSpace(role) ? "HR" : role;
+    }
+
+    private async Task CreateUserAsync()
+    {
+        if (_busyAction)
+        {
+            return;
+        }
+
+        _busyAction = true;
+        _error = null;
+        _success = null;
+        ClearDangerConfirmations();
+        try
+        {
+            await Store.CreateSuperAdminUserAsync(new CreateBackofficeUserRequestDto
+            {
+                Login = _createLogin,
+                Password = _createPassword,
+                Email = _createEmail,
+                Phone = _createPhone,
+                Roles = [_createRole],
+            }, CancellationToken.None);
+
+            _createLogin = string.Empty;
+            _createPassword = string.Empty;
+            _createEmail = null;
+            _createPhone = null;
+            _createRole = "HR";
+            _success = "Пользователь создан.";
+            ShowToast(_success, isError: false);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private async Task AddRoleAsync(Guid userId)
+    {
+        if (_busyAction)
+        {
+            return;
+        }
+
+        _busyAction = true;
+        _error = null;
+        _success = null;
+        ClearDangerConfirmations();
+        try
+        {
+            var role = GetRoleToAdd(userId);
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                _error = "Нет доступных ролей для добавления.";
+                ShowToast(_error, isError: true);
+                return;
+            }
+
+            await Store.AddSuperAdminUserRoleAsync(userId, role, CancellationToken.None);
+            _success = $"Роль {TranslateRole(role)} добавлена.";
+            ShowToast(_success, isError: false);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private void RequestRemoveRole(Guid userId, string role)
+    {
+        var user = _users.FirstOrDefault(x => x.Id == userId);
+        if (user is null || !CanRemoveRole(user, role))
+        {
+            return;
+        }
+
+        _confirmToggleUserId = null;
+        _confirmRemoveRoleUserId = userId;
+        _confirmRemoveRole = role;
+    }
+
+    private async Task ConfirmRemoveRoleAsync()
+    {
+        if (_busyAction || !_confirmRemoveRoleUserId.HasValue || string.IsNullOrWhiteSpace(_confirmRemoveRole))
+        {
+            return;
+        }
+
+        _busyAction = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            await Store.RemoveSuperAdminUserRoleAsync(_confirmRemoveRoleUserId.Value, _confirmRemoveRole, CancellationToken.None);
+            _success = $"Роль {TranslateRole(_confirmRemoveRole)} снята.";
+            ShowToast(_success, isError: false);
+            ClearDangerConfirmations();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private void RequestToggleActive(Guid userId)
+    {
+        var user = _users.FirstOrDefault(x => x.Id == userId);
+        if (user is null || IsSelf(user))
+        {
+            return;
+        }
+
+        _confirmRemoveRoleUserId = null;
+        _confirmRemoveRole = null;
+        _confirmToggleUserId = userId;
+    }
+
+    private async Task ConfirmToggleActiveAsync(Guid userId)
+    {
+        if (_busyAction || _confirmToggleUserId != userId)
+        {
+            return;
+        }
+
+        _busyAction = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            await Store.ToggleSuperAdminUserActiveAsync(userId, CancellationToken.None);
+            _success = "Статус пользователя изменён.";
+            ShowToast(_success, isError: false);
+            ClearDangerConfirmations();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private void ClearDangerConfirmations()
+    {
+        _confirmToggleUserId = null;
+        _confirmRemoveRoleUserId = null;
+        _confirmRemoveRole = null;
+    }
+
+    private void ShowToast(string? message, bool isError)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        _toastMessage = message;
+        _toastIsError = isError;
+        _toastVersion++;
+        _ = AutoHideToastAsync(_toastVersion);
+    }
+
+    private async Task AutoHideToastAsync(int version)
+    {
+        await Task.Delay(TimeSpan.FromSeconds(4));
+        if (version != _toastVersion)
+        {
+            return;
+        }
+
+        _toastMessage = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HideToast()
+    {
+        _toastMessage = null;
+    }
+
+    private bool IsSelf(BackofficeUserItemDto user) => string.Equals(user.Id.ToString("D"), Session.UserId, StringComparison.OrdinalIgnoreCase);
+
+    private static string TranslateRole(string role) =>
+        role switch
+        {
+            "HR" => "HR",
+            "OPERATOR" => "Оператор",
+            "MANAGER" => "Менеджер",
+            "ACCOUNTANT" => "Бухгалтер",
+            "ADMIN" => "Администратор",
+            "SUPERADMIN" => "Суперадмин",
+            _ => role,
+        };
+
+    private static string TranslateRoleFilter(string role) =>
+        string.Equals(role, "all", StringComparison.OrdinalIgnoreCase) ? "Все роли" : TranslateRole(role);
+
+    private static string TranslateUserStatus(bool isActive) => isActive ? "Активен" : "Неактивен";
+
+    private IEnumerable<string> GetAvailableRolesToAdd(BackofficeUserItemDto user)
+    {
+        var existing = new HashSet<string>(user.Roles, StringComparer.OrdinalIgnoreCase);
+        return ManagedRoles.Where(x => !existing.Contains(x));
+    }
+
+    private bool CanRemoveRole(BackofficeUserItemDto user, string role)
+    {
+        if (user.Roles.Count <= 1)
+        {
+            return false;
+        }
+
+        if (IsSelf(user) && string.Equals(role, "SUPERADMIN", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return true;
+    }
+}
+

@@ -1,0 +1,330 @@
+@page "/superadmin/settings"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Настройки суперадмина</PageTitle>
+
+<h1 class="mb-4">Настройки суперадмина</h1>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger mb-4">@_error</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_success))
+{
+    <div class="tw-alert-success mb-4">@_success</div>
+}
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Область</label>
+                    <select class="tw-select mt-1" @bind="_scope">
+                        <option value="all">Все области</option>
+                        <option value="security">Безопасность</option>
+                        <option value="incidents">Инциденты</option>
+                        <option value="notifications">Уведомления</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table mb-4">
+        <thead>
+            <tr>
+                <th class="tw-th">Область</th>
+                <th class="tw-th">Ключ</th>
+                <th class="tw-th">Значение</th>
+                <th class="tw-th">Обновлено</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var setting in _settings)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@TranslateScope(setting.Scope)</td>
+                    <td class="tw-td whitespace-nowrap">@setting.Key</td>
+                    <td class="tw-td"><code>@setting.Value</code></td>
+                    <td class="tw-td whitespace-nowrap">@setting.UpdatedAtUtc.ToLocalTime().ToString("g")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="mb-2 text-sm font-semibold text-ink-900">@(_editCode is null ? "Добавить тариф" : $"Редактировать тариф {_editCode}")</div>
+            <div class="grid gap-3 md:grid-cols-12">
+                @if (_editCode is null)
+                {
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-ink-700">Код</label>
+                        <input class="tw-input mt-1" @bind="_tariffForm.Code" placeholder="STANDARD" />
+                    </div>
+                }
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Название</label>
+                    <input class="tw-input mt-1" @bind="_tariffForm.Name" placeholder="Стандарт" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Описание</label>
+                    <input class="tw-input mt-1" @bind="_tariffForm.Description" placeholder="Краткое описание" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Абонплата</label>
+                    <input class="tw-input mt-1" type="number" step="0.01" @bind="_tariffForm.MonthlyFee" />
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-medium text-ink-700">Валюта</label>
+                    <input class="tw-input mt-1" @bind="_tariffForm.Currency" placeholder="KZT" />
+                </div>
+                <div class="md:col-span-1">
+                    <label class="block text-sm font-medium text-ink-700">Порядок</label>
+                    <input class="tw-input mt-1" type="number" @bind="_tariffForm.SortOrder" />
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <label class="flex items-center gap-2 text-sm text-ink-700">
+                        <input class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_tariffForm.IsActive" />
+                        <span>Активен</span>
+                    </label>
+                </div>
+                <div class="md:col-span-3 flex items-end gap-2">
+                    @if (_editCode is null)
+                    {
+                        <button type="button" class="tw-btn-primary w-full" @onclick="CreateTariffAsync">Добавить</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="tw-btn-primary w-full" @onclick="UpdateTariffAsync">Сохранить</button>
+                        <button type="button" class="tw-btn-outline" @onclick="CancelTariffEdit">Отмена</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Код</th>
+                <th class="tw-th">Название</th>
+                <th class="tw-th">Абонплата</th>
+                <th class="tw-th">Статус</th>
+                <th class="tw-th">Обновлено</th>
+                <th class="tw-th">Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var tariff in _tariffs)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@tariff.Code</td>
+                    <td class="tw-td">@tariff.Name</td>
+                    <td class="tw-td whitespace-nowrap">@tariff.MonthlyFee.ToString("0.##") @tariff.Currency</td>
+                    <td class="tw-td whitespace-nowrap">@(tariff.IsActive ? "Активен" : "Неактивен")</td>
+                    <td class="tw-td whitespace-nowrap">@tariff.UpdatedAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="tw-td whitespace-nowrap">
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" class="tw-btn-outline" @onclick="() => StartTariffEdit(tariff)">Редактировать</button>
+                            <button type="button" class="tw-btn-outline" @onclick="() => DeleteTariffAsync(tariff.Code)">Удалить</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private string _scope = "all";
+    private string? _error;
+    private string? _success;
+    private string? _editCode;
+    private TariffForm _tariffForm = new();
+    private IReadOnlyCollection<SuperAdminSettingItemDto> _settings = [];
+    private IReadOnlyCollection<BillingTariffItemDto> _tariffs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.SuperAdminOnlyRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            _settings = await Store.GetSuperAdminSettingsAsync(_scope, CancellationToken.None);
+            _tariffs = await Store.GetTariffsAsync(includeInactive: true, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateTariffAsync()
+    {
+        _error = null;
+        _success = null;
+        try
+        {
+            await Store.CreateTariffAsync(_tariffForm.ToRequest(), CancellationToken.None);
+            _success = "Тариф добавлен.";
+            _tariffForm = new TariffForm();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private async Task UpdateTariffAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editCode))
+        {
+            return;
+        }
+
+        _error = null;
+        _success = null;
+        try
+        {
+            await Store.UpdateTariffAsync(_editCode, _tariffForm.ToRequest(), CancellationToken.None);
+            _success = "Тариф обновлен.";
+            CancelTariffEdit();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private async Task DeleteTariffAsync(string code)
+    {
+        _error = null;
+        _success = null;
+        try
+        {
+            await Store.DeleteTariffAsync(code, CancellationToken.None);
+            if (string.Equals(_editCode, code, StringComparison.OrdinalIgnoreCase))
+            {
+                CancelTariffEdit();
+            }
+
+            _success = "Тариф удален.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private void StartTariffEdit(BillingTariffItemDto tariff)
+    {
+        _editCode = tariff.Code;
+        _tariffForm = new TariffForm
+        {
+            Code = tariff.Code,
+            Name = tariff.Name,
+            Description = tariff.Description,
+            MonthlyFee = tariff.MonthlyFee,
+            Currency = tariff.Currency,
+            IsActive = tariff.IsActive,
+            SortOrder = tariff.SortOrder,
+        };
+    }
+
+    private void CancelTariffEdit()
+    {
+        _editCode = null;
+        _tariffForm = new TariffForm();
+    }
+
+    private static string TranslateScope(string scope) =>
+        scope switch
+        {
+            "security" => "Безопасность",
+            "incidents" => "Инциденты",
+            "notifications" => "Уведомления",
+            _ => scope,
+        };
+
+    private sealed class TariffForm
+    {
+        public string Code { get; set; } = "STANDARD";
+        public string Name { get; set; } = "Стандарт";
+        public string? Description { get; set; }
+        public decimal MonthlyFee { get; set; }
+        public string Currency { get; set; } = "KZT";
+        public bool IsActive { get; set; } = true;
+        public int SortOrder { get; set; } = 10;
+
+        public UpsertBillingTariffRequestDto ToRequest() =>
+            new()
+            {
+                Code = Code,
+                Name = Name,
+                Description = Description,
+                MonthlyFee = MonthlyFee,
+                Currency = Currency,
+                IsActive = IsActive,
+                SortOrder = SortOrder,
+            };
+    }
+}

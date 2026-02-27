@@ -1,0 +1,196 @@
+@page "/admin/payments/import"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Импорт платежей</PageTitle>
+
+<h1 class="mb-4">Импорт платежей</h1>
+
+<div class="tw-card mb-4">
+    <div class="tw-card-body space-y-3">
+        <h2 class="text-lg font-semibold tracking-tight">Загрузка 1CClientBankExchange</h2>
+        <InputFile OnChange="HandleFileSelectedAsync" />
+        @if (!string.IsNullOrWhiteSpace(_uploadMessage))
+        {
+            <div class="@(_uploadError ? "tw-alert-danger" : "tw-alert-success")">@_uploadMessage</div>
+        }
+        <div class="text-xs text-ink-500">
+            Важно: по политике допускается только формат `1CClientBankExchange`.
+        </div>
+    </div>
+</div>
+
+@if (_imports.Count > 0)
+{
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Создан</th>
+                <th class="tw-th">Файл</th>
+                <th class="tw-th">Статус</th>
+                <th class="tw-th">Строк</th>
+                <th class="tw-th">Сопоставлено</th>
+                <th class="tw-th">Неоднозначно</th>
+                <th class="tw-th">Ошибки</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var import in _imports)
+            {
+                <tr class="@(import.Id == _selectedImportId ? "bg-sky-50" : "odd:bg-white even:bg-ink-50")">
+                    <td class="tw-td whitespace-nowrap">@import.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="tw-td">@import.FileName</td>
+                    <td class="tw-td whitespace-nowrap">@import.Status</td>
+                    <td class="tw-td whitespace-nowrap">@import.TotalRows</td>
+                    <td class="tw-td whitespace-nowrap">@import.MatchedRows</td>
+                    <td class="tw-td whitespace-nowrap">@import.AmbiguousRows</td>
+                    <td class="tw-td whitespace-nowrap">@import.InvalidRows</td>
+                    <td>
+                        <button class="tw-btn-outline" @onclick="() => SelectImportAsync(import.Id)">Открыть</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_selectedImport is not null)
+{
+    <div class="mt-6 mb-3 flex items-center justify-between">
+        <h2 class="text-lg font-semibold tracking-tight">Строки импорта: @_selectedImport.FileName</h2>
+        <button
+            type="button"
+            class="tw-btn-primary"
+            disabled="@(_selectedImport.Status == "APPLIED")"
+            @onclick="ApplySelectedAsync">
+            Применить сопоставленные строки
+        </button>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Референс</th>
+                <th class="tw-th">Дата</th>
+                <th class="tw-th">Сумма</th>
+                <th class="tw-th">Статус</th>
+                <th class="tw-th">Клиент</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _selectedRows)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@row.Reference</td>
+                    <td class="tw-td whitespace-nowrap">@row.PaymentDateUtc.ToLocalTime().ToString("d")</td>
+                    <td class="tw-td whitespace-nowrap">@row.Amount</td>
+                    <td class="tw-td whitespace-nowrap">@row.MatchStatus</td>
+                    <td class="tw-td">@(@row.ClientDisplayName ?? "-")</td>
+                    <td>
+                        @if (row.MatchStatus == "AMBIGUOUS")
+                        {
+                            <button class="tw-btn-warning" @onclick="() => ManualMatchAsync(row.Id)">Ручное сопоставление</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IReadOnlyCollection<PaymentImportItemDto> _imports = [];
+    private PaymentImportItemDto? _selectedImport;
+    private Guid? _selectedImportId;
+    private IReadOnlyCollection<PaymentImportRowItemDto> _selectedRows = [];
+    private string? _uploadMessage;
+    private bool _uploadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.AdminRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadImportsAsync();
+    }
+
+    private async Task HandleFileSelectedAsync(InputFileChangeEventArgs args)
+    {
+        _uploadMessage = null;
+        _uploadError = false;
+        var file = args.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        await using var stream = file.OpenReadStream(2 * 1024 * 1024);
+        using var reader = new StreamReader(stream);
+        var content = await reader.ReadToEndAsync();
+
+        if (!content.Contains("1CClientBankExchange", StringComparison.OrdinalIgnoreCase))
+        {
+            _uploadError = true;
+            _uploadMessage = "Неподдерживаемый формат. Разрешен только 1CClientBankExchange.";
+            return;
+        }
+
+        var import = await Store.CreateImportDraftAsync(file.Name, content, CancellationToken.None);
+        _uploadMessage = $"Файл загружен: {file.Name}. Строк: {import.TotalRows}.";
+        await ReloadImportsAsync();
+        await SelectImportAsync(import.Id);
+    }
+
+    private async Task ReloadImportsAsync()
+    {
+        _imports = await Store.GetImportsAsync(CancellationToken.None);
+        if (_selectedImportId.HasValue)
+        {
+            _selectedImport = _imports.FirstOrDefault(x => x.Id == _selectedImportId.Value);
+        }
+    }
+
+    private async Task SelectImportAsync(Guid importId)
+    {
+        _selectedImportId = importId;
+        _selectedImport = _imports.FirstOrDefault(x => x.Id == importId);
+        _selectedRows = await Store.GetImportRowsAsync(importId, CancellationToken.None);
+    }
+
+    private async Task ApplySelectedAsync()
+    {
+        if (_selectedImport is null)
+        {
+            return;
+        }
+
+        await Store.ApplyImportAsync(_selectedImport.Id, CancellationToken.None);
+        await ReloadImportsAsync();
+        await SelectImportAsync(_selectedImport.Id);
+    }
+
+    private async Task ManualMatchAsync(Guid rowId)
+    {
+        if (_selectedImport is null)
+        {
+            return;
+        }
+
+        await Store.ManualMatchAsync(_selectedImport.Id, rowId, "Клиент (вручную)", CancellationToken.None);
+        await ReloadImportsAsync();
+        await SelectImportAsync(_selectedImport.Id);
+    }
+}
+

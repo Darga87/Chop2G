@@ -1,0 +1,1230 @@
+﻿@page "/operator/dashboard"
+@using Chop.Shared.Contracts.Incidents
+@using Chop.Shared.Contracts.Alerts
+@using System.Net
+@inject Chop.Web.Incidents.IncidentsApiClient ApiClient
+@inject Chop.Web.Backoffice.BackofficeApiClient BackofficeClient
+@inject Chop.Web.Incidents.IncidentRealtimeClient RealtimeClient
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Дашборд оператора</PageTitle>
+
+<div class="flex flex-col gap-4">
+    <div class="flex items-start justify-between gap-3">
+        <h1>Дашборд оператора</h1>
+        <button class="tw-btn-outline" @onclick="ReloadAsync" disabled="@_loading">Обновить</button>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="tw-alert-danger">@_error</div>
+    }
+
+    <div class="grid gap-4 md:grid-cols-12">
+        <div class="md:col-span-7 min-w-0 space-y-4">
+            <div id="map-section" class="tw-card">
+                <div class="tw-card-body">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Карта</div>
+                            <div class="text-sm text-ink-700">Для инцидента отображаются 2 точки: ТРЕВОГА + ДОМ.</div>
+                        </div>
+                        @if (_selectedDetails?.Location is not null)
+                        {
+                            <a class="tw-btn-outline" target="_blank" href="@BuildYandexMapsLink(_selectedDetails.Location.Lat, _selectedDetails.Location.Lon)">Открыть в Картах</a>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_mapError))
+                    {
+                        <div class="tw-alert-warning mt-3">@_mapError</div>
+                    }
+
+                    <div class="relative mt-3 overflow-hidden rounded-xl border border-ink-200 bg-ink-50">
+                        <div id="operatorDashboardMap" style="width: 100%; height: 18rem; min-height: 18rem;"></div>
+                        @if (_alerts.Count > 0)
+                        {
+                            <div class="absolute left-3 top-3 rounded-lg border border-ink-200 bg-white/95 px-3 py-2 text-xs shadow-sm">
+                                <div class="font-semibold text-ink-900">Открытые алерты: @_alerts.Count</div>
+                                <div class="mt-1 flex flex-wrap gap-2 text-ink-700">
+                                    <span class="rounded-full bg-red-50 px-2 py-0.5 text-red-700">Критично: @_alerts.Count(x => x.Severity == "CRITICAL")</span>
+                                    <span class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800">Предупр.: @_alerts.Count(x => x.Severity == "WARN")</span>
+                                    <span class="rounded-full bg-sky-50 px-2 py-0.5 text-sky-800">Инфо: @_alerts.Count(x => x.Severity == "INFO")</span>
+                                </div>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @foreach (var grouped in _alerts.GroupBy(x => x.RuleCode).OrderByDescending(x => x.Count()))
+                                    {
+                                        var sample = grouped.First();
+                                        <button class="rounded-full border border-ink-200 bg-white px-2 py-0.5 text-[11px] text-ink-700 hover:bg-ink-100"
+                                                @onclick="() => NavigateAlertTargetAsync(sample)">
+                                            @GetRuleBadgeLabel(sample.RuleCode) x @grouped.Count()
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div class="rounded-lg border border-ink-200 bg-white p-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Точка ТРЕВОГИ</div>
+                            <div class="mt-1 text-sm text-ink-900">@(_selectedDetails?.AddressSnapshot ?? "-")</div>
+                            <div class="mt-1 text-xs text-ink-600">@FormatLocation(_selectedDetails?.Location)</div>
+                        </div>
+                        <div class="rounded-lg border border-ink-200 bg-white p-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Точка ДОМА</div>
+                            <div class="mt-1 text-sm text-ink-900">@(_homeAddress?.Address ?? "-")</div>
+                            <div class="mt-1 text-xs text-ink-600">@FormatLocation(_homeAddress?.Location)</div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3 text-xs text-ink-500">
+                        Маркеры охранников появляются, когда мобильное приложение отправляет гео-пинг в `/api/guard/location/ping` с `incidentId`.
+                    </div>
+                </div>
+            </div>
+
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Живая очередь</div>
+                            <div class="text-sm text-ink-700">Обновления в реальном времени: новые инциденты + смена статусов.</div>
+                        </div>
+                        <div class="flex w-full flex-wrap gap-2 sm:w-auto sm:flex-nowrap">
+                            <input class="tw-input w-full sm:w-48" @bind="_statusFilter" placeholder="Фильтр статуса (необязательно)" />
+                            <button class="tw-btn-outline" @onclick="ReloadAsync" disabled="@_loading">Применить</button>
+                        </div>
+                    </div>
+
+                    @if (_loading)
+                    {
+                        <div class="tw-alert-info mt-3">Загрузка...</div>
+                    }
+                    else
+                    {
+                        <div class="mt-3 max-w-full overflow-x-hidden">
+                            <table class="tw-table w-full table-fixed">
+                                <thead>
+                                    <tr>
+                                        <th class="tw-th w-36">Создан</th>
+                                        <th class="tw-th w-40">Статус</th>
+                                        <th class="tw-th">Клиент</th>
+                                        <th class="tw-th">Адрес</th>
+                                        <th class="tw-th w-40"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in _items)
+                                    {
+                                        var selected = item.Id == _selectedIncidentId;
+                                        <tr class="@(selected ? "bg-sky-50" : "odd:bg-white even:bg-ink-50")">
+                                            <td class="tw-td whitespace-nowrap">@item.CreatedAt.ToLocalTime().ToString("g")</td>
+                                            <td class="tw-td whitespace-nowrap">@TranslateStatus(item.Status)</td>
+                                            <td class="tw-td break-all">@item.ClientSummary</td>
+                                            <td class="tw-td break-words">@item.AddressSnapshot</td>
+                                            <td class="tw-td">
+                                                <div class="flex flex-wrap gap-2">
+                                                    <button class="tw-btn-outline" @onclick="() => SelectIncidentAsync(item.Id)">Открыть</button>
+                                                    <a class="tw-btn-outline" href="@($"/operator/incidents/{item.Id}")">Детали</a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="md:col-span-5 min-w-0 space-y-4">
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Инцидент</div>
+
+                    @if (_selectedDetails is null)
+                    {
+                        <div class="mt-2 text-sm text-ink-600">Инцидент не выбран.</div>
+                    }
+                    else
+                    {
+                        <div class="mt-2 space-y-2 text-sm">
+                            <div><span class="text-ink-500">ID:</span> <code>@_selectedDetails.Id</code></div>
+                            <div><span class="text-ink-500">Статус:</span> <span class="font-medium">@TranslateStatus(_selectedDetails.Status)</span></div>
+                            <div><span class="text-ink-500">Клиент:</span> @_selectedDetails.Client.FullName</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div id="dispatch-section" class="tw-card">
+                <div class="tw-card-body">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Диспетчеризация (по умолчанию 2 группы)</div>
+
+                    @if (_selectedDetails is null)
+                    {
+                        <div class="mt-2 text-sm text-ink-600">Выберите инцидент.</div>
+                    }
+                    else
+                    {
+                        <div class="mt-2 space-y-3">
+                            <div class="rounded-lg border border-ink-200 bg-ink-50 p-3">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Группы на дежурстве сейчас</div>
+                                @if (_onDutyGroups.Count == 0)
+                                {
+                                    <div class="mt-2 text-sm text-ink-600">Нет активных групп на дежурстве.</div>
+                                }
+                                else
+                                {
+                                    <div class="mt-2 space-y-2">
+                                        @foreach (var group in _onDutyGroups)
+                                        {
+                                            <div class="rounded border border-ink-200 bg-white p-2">
+                                                <div class="flex items-center justify-between gap-2">
+                                                    <div class="text-sm font-medium text-ink-900">@group.Name</div>
+                                                    <div class="text-xs text-ink-600">@group.GuardUserIds.Count чел.</div>
+                                                </div>
+                                                <div class="mt-1 space-y-1">
+                                                    @foreach (var guard in group.Guards)
+                                                    {
+                                                        <div class="text-xs text-ink-700">
+                                                            @guard.DisplayName
+                                                            @if (!string.IsNullOrWhiteSpace(guard.PostLabel))
+                                                            {
+                                                                <span> · пост: @guard.PostLabel</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="rounded-lg border border-red-200 bg-red-50/40 p-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">Группа A</span>
+                                    <span class="rounded-full bg-red-600 px-2 py-0.5 text-xs font-semibold text-white">ТРЕВОГА</span>
+                                </div>
+                                @if (_dispatchA is null)
+                                {
+                                    <div class="mt-1 text-sm text-ink-600">Пока не создано.</div>
+                                }
+                                else
+                                {
+                                    <div class="mt-1 text-sm text-ink-900">Группа: @GetDispatchGroupName(_dispatchA)</div>
+                                    <div class="mt-1 text-sm text-ink-900">Куда: @GetDispatchTargetLabel(_dispatchA)</div>
+                                    <div class="mt-1 text-sm text-ink-900">Метод: @_dispatchA.Method</div>
+                                    <div class="mt-1 text-xs text-ink-600">Получателей: @_dispatchA.Recipients.Count</div>
+                                    <div class="mt-2 space-y-1">
+                                        @foreach (var recipient in _dispatchA.Recipients)
+                                        {
+                                            <div class="flex items-center justify-between gap-2 text-xs">
+                                                <span class="text-ink-800">@GetGuardDisplayName(recipient.RecipientId)</span>
+                                                <span class="rounded-full bg-ink-100 px-2 py-0.5 text-ink-700">@TranslateDispatchRecipientStatus(recipient.Status)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="rounded-lg border border-sky-200 bg-sky-50/40 p-3">
+                                <div class="flex items-center gap-2">
+                                    <span class="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-700">Группа B</span>
+                                    <span class="rounded-full bg-sky-600 px-2 py-0.5 text-xs font-semibold text-white">ДОМ</span>
+                                </div>
+                                @if (_dispatchB is null)
+                                {
+                                    <div class="mt-1 text-sm text-ink-600">Пока не создано.</div>
+                                }
+                                else
+                                {
+                                    <div class="mt-1 text-sm text-ink-900">Группа: @GetDispatchGroupName(_dispatchB)</div>
+                                    <div class="mt-1 text-sm text-ink-900">Куда: @GetDispatchTargetLabel(_dispatchB)</div>
+                                    <div class="mt-1 text-sm text-ink-900">Метод: @_dispatchB.Method</div>
+                                    <div class="mt-1 text-xs text-ink-600">Получателей: @_dispatchB.Recipients.Count</div>
+                                    <div class="mt-2 space-y-1">
+                                        @foreach (var recipient in _dispatchB.Recipients)
+                                        {
+                                            <div class="flex items-center justify-between gap-2 text-xs">
+                                                <span class="text-ink-800">@GetGuardDisplayName(recipient.RecipientId)</span>
+                                                <span class="rounded-full bg-ink-100 px-2 py-0.5 text-ink-700">@TranslateDispatchRecipientStatus(recipient.Status)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <details class="rounded-lg border border-ink-200 bg-ink-50 p-3">
+                                <summary class="cursor-pointer text-sm font-medium text-ink-900">Создать диспетчеризацию (MVP)</summary>
+                                <div class="mt-3 space-y-3 text-sm">
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <div>
+                                            <label class="block text-xs font-semibold uppercase tracking-wide text-ink-500">Метод</label>
+                                            <select class="tw-select mt-1" @bind="_dispatchMethod">
+                                                <option value="APP">APP</option>
+                                                <option value="PHONE">PHONE</option>
+                                                <option value="RADIO">RADIO</option>
+                                                <option value="MIXED">MIXED</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold uppercase tracking-wide text-ink-500">Комментарий</label>
+                                            <input class="tw-input mt-1" @bind="_dispatchComment" placeholder="Необязательно" />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-semibold uppercase tracking-wide text-ink-500">Группа A (из заступивших на дежурство)</label>
+                                        <select class="tw-select mt-1" @bind="_dispatchAGroup">
+                                            <option value="">Выберите группу</option>
+                                            @foreach (var group in _onDutyGroups)
+                                            {
+                                                <option value="@group.Name">@group.DisplayName</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button class="tw-btn-primary" disabled="@_busyDispatch" @onclick="() => CreateDispatchGroupAsync('A')">Отправить группу A</button>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-semibold uppercase tracking-wide text-ink-500">Группа B (из заступивших на дежурство)</label>
+                                        <select class="tw-select mt-1" @bind="_dispatchBGroup">
+                                            <option value="">Выберите группу</option>
+                                            @foreach (var group in _onDutyGroups)
+                                            {
+                                                <option value="@group.Name">@group.DisplayName</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button class="tw-btn-primary" disabled="@_busyDispatch" @onclick="() => CreateDispatchGroupAsync('B')">Отправить группу B</button>
+                                    </div>
+                                    @if (_onDutyGroups.Count == 0)
+                                    {
+                                        <div class="tw-alert-warning">Нет активных групп на дежурстве. Проверьте, что смена открыта с выбранной группой.</div>
+                                    }
+                                </div>
+                            </details>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div id="alerts-section" class="tw-card">
+                <div class="tw-card-body">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Алерты</div>
+                    <div class="mt-1 text-xs text-ink-600">Оверрайд: принудительно закрыть алерт с комментарием оператора.</div>
+                    @if (_selectedDetails is null)
+                    {
+                        <div class="mt-2 text-sm text-ink-600">Выберите инцидент.</div>
+                    }
+                    else if (_alerts.Count == 0)
+                    {
+                        <div class="mt-2 text-sm text-ink-600">Алертов нет.</div>
+                    }
+                    else
+                    {
+                        <ul class="mt-2 space-y-2 text-sm">
+                            @foreach (var a in _alerts)
+                            {
+                                <li class="tw-alert-warning">
+                                    <div class="min-w-0">
+                                        <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">@TranslateSeverity(a.Severity) · @TranslateAlertStatus(a.Status)</div>
+                                        <div class="text-sm text-ink-900">@a.Summary</div>
+                                        <div class="text-xs text-ink-700">Цель: @GetRuleTargetLabel(a.RuleCode)</div>
+                                        @if (!string.IsNullOrWhiteSpace(a.AssigneeUserId))
+                                        {
+                                            <div class="text-xs text-ink-700">Назначено: @a.AssigneeUserId</div>
+                                        }
+                                        <div class="text-xs text-ink-600">@a.CreatedAtUtc.ToLocalTime().ToString("g")</div>
+                                    </div>
+                                    <div class="mt-2 flex flex-wrap gap-2">
+                                        <button class="tw-btn-outline" disabled="@_busyAlertAction" @onclick="() => NavigateAlertTargetAsync(a)">Перейти</button>
+                                        @if (!string.Equals(a.Status, "RESOLVED", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            @if (string.IsNullOrWhiteSpace(a.AssigneeUserId) || !string.Equals(a.AssigneeUserId, Session.UserId, StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <button class="tw-btn-outline" disabled="@_busyAlertAction" @onclick="() => AssignAlertToMeAsync(a.Id)">Назначить на меня</button>
+                                            }
+                                            @if (!string.Equals(a.Status, "ACKED", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                <button class="tw-btn-outline" disabled="@_busyAlertAction" @onclick="() => AckAlertAsync(a.Id)">Подтвердить</button>
+                                            }
+                                            <button class="tw-btn-outline" disabled="@_busyAlertAction" @onclick="() => OverrideAlertAsync(a.Id)">Снять алерт</button>
+                                            <button class="tw-btn-primary" disabled="@_busyAlertAction" @onclick="() => ResolveAlertAsync(a.Id)">Закрыть</button>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code
+{
+    private readonly List<IncidentListItemDto> _items = [];
+    private bool _loading = true;
+    private string? _error;
+    private string? _statusFilter;
+
+    private Guid? _selectedIncidentId;
+    private IncidentDetailsDto? _selectedDetails;
+    private ClientAddressDto? _homeAddress;
+    private DispatchDto? _dispatchA;
+    private DispatchDto? _dispatchB;
+    private readonly List<AlertListItemDto> _alerts = [];
+    private string? _mapError;
+    private bool _mapInitialized;
+    private readonly Dictionary<string, IncidentLocationDto> _guardLocations = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool _busyDispatch;
+    private string _dispatchMethod = "APP";
+    private string? _dispatchComment;
+    private string? _dispatchAGroup;
+    private string? _dispatchBGroup;
+    private List<OnDutyGroupOption> _onDutyGroups = [];
+    private readonly Dictionary<string, string> _onDutyGuardNames = new(StringComparer.OrdinalIgnoreCase);
+    private bool _busyAlertAction;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(Chop.Web.Auth.RoleConstants.OpsRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        RealtimeClient.IncidentCreated += OnIncidentCreated;
+        RealtimeClient.IncidentStatusChanged += OnIncidentStatusChanged;
+        RealtimeClient.DispatchCreated += OnDispatchCreated;
+        RealtimeClient.DispatchAccepted += OnDispatchAccepted;
+        RealtimeClient.GuardLocationUpdated += OnGuardLocationUpdated;
+
+        string? realtimeError = null;
+        try
+        {
+            await RealtimeClient.EnsureConnectedAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            realtimeError = $"Поток обновлений недоступен: {ex.Message}";
+        }
+
+        await ReloadAsync();
+        if (!string.IsNullOrWhiteSpace(realtimeError))
+        {
+            _error = string.IsNullOrWhiteSpace(_error) ? realtimeError : $"{_error} {realtimeError}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await TryInitMapAsync();
+            await UpdateMapAsync();
+        }
+    }
+
+    private async Task TryInitMapAsync()
+    {
+        if (_mapInitialized)
+        {
+            return;
+        }
+
+        var apiKey = (Configuration["Yandex:MapsApiKey"] ?? string.Empty).Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            _mapError = "Не задан API-ключ Yandex Maps. Укажите `Yandex:MapsApiKey` через user-secrets или env `Yandex__MapsApiKey`.";
+            return;
+        }
+
+        _mapError = null;
+        try
+        {
+            // Центр по умолчанию - Москва для MVP; маркеры автоматически переопределят область.
+            await JS.InvokeVoidAsync("chopMaps.init", "operatorDashboardMap", apiKey, 55.751244, 37.618423, 12);
+            _mapInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            _mapError = $"Не удалось инициализировать карту: {ex.Message}";
+        }
+    }
+
+    private async Task UpdateMapAsync()
+    {
+        if (!_mapInitialized)
+        {
+            return;
+        }
+
+        try
+        {
+            var markers = new List<object>(capacity: 6);
+            if (_selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#redIcon",
+                    hint = "ТРЕВОГА",
+                    balloon = $"ТРЕВОГА<br/>{System.Net.WebUtility.HtmlEncode(_selectedDetails.AddressSnapshot ?? string.Empty)}",
+                });
+            }
+
+            if (_homeAddress?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "home",
+                    lat = _homeAddress.Location.Lat,
+                    lon = _homeAddress.Location.Lon,
+                    preset = "islands#blueIcon",
+                    hint = "ДОМ",
+                    balloon = $"ДОМ<br/>{System.Net.WebUtility.HtmlEncode(_homeAddress.Address ?? string.Empty)}",
+                });
+            }
+
+            // Map-level alert marker for missing second group (placed at ALERT point if it exists).
+            var hasSecondGroupAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_SECOND_GROUP_MISSING");
+            if (hasSecondGroupAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:second-group-missing",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#orangeIcon",
+                    hint = "НЕ ХВАТАЕТ 2-Й ГРУППЫ",
+                    balloon = "Не хватает второй группы (создана только 1 диспетчеризация).",
+                });
+            }
+
+            var hasNoAcceptAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_NO_ACCEPT");
+            if (hasNoAcceptAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:no-accept",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#redIcon",
+                    hint = "НЕТ ПРИНЯТИЯ",
+                    balloon = "Ни один охранник пока не принял диспетчеризацию.",
+                });
+            }
+
+            var hasNoAcceptStuckAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_NO_ACCEPT_STUCK");
+            if (hasNoAcceptStuckAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:no-accept-stuck",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#darkRedIcon",
+                    hint = "НЕТ ПРИНЯТИЯ (SLA)",
+                    balloon = "Застревание диспетчеризации: никто не принял в SLA-окно.",
+                });
+            }
+
+            var hasNoPingAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_GUARD_NO_PING");
+            if (hasNoPingAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:no-ping",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#violetIcon",
+                    hint = "НЕТ ПИНГА",
+                    balloon = "Охранник принял задачу, но гео-пинги еще не поступали.",
+                });
+            }
+
+            var hasGuardOfflineAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_GUARD_OFFLINE");
+            if (hasGuardOfflineAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:guard-offline",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#blackIcon",
+                    hint = "ОХРАННИК ОФФЛАЙН",
+                    balloon = "Охранник оффлайн: нет гео-пинга в SLA-окне.",
+                });
+            }
+
+            var hasStuckInStatusAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_STUCK_IN_STATUS");
+            if (hasStuckInStatusAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:stuck-in-status",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#grayIcon",
+                    hint = "ЗАСТРЯЛ В СТАТУСЕ",
+                    balloon = "Инцидент застрял в EN_ROUTE/ON_SCENE дольше SLA.",
+                });
+            }
+
+            var hasPointConflictAlert = _alerts.Any(x => x.RuleCode == "INCIDENT_POINT_CONFLICT");
+            if (hasPointConflictAlert && _selectedDetails?.Location is not null)
+            {
+                markers.Add(new
+                {
+                    id = "alert:point-conflict",
+                    lat = _selectedDetails.Location.Lat,
+                    lon = _selectedDetails.Location.Lon,
+                    preset = "islands#orangeIcon",
+                    hint = "КОНФЛИКТ ТОЧЕК",
+                    balloon = "Конфликт точек ТРЕВОГИ и ДОМА (расстояние выше порога).",
+                });
+            }
+
+            if (_selectedIncidentId is Guid selectedId)
+            {
+                foreach (var kvp in _guardLocations)
+                {
+                    var guardUserId = kvp.Key;
+                    var loc = kvp.Value;
+                    markers.Add(new
+                    {
+                        id = $"guard:{guardUserId}",
+                        lat = loc.Lat,
+                        lon = loc.Lon,
+                    preset = "islands#greenIcon",
+                    hint = $"ОХРАННИК {guardUserId}",
+                    balloon = $"ОХРАННИК<br/>{System.Net.WebUtility.HtmlEncode(guardUserId)}<br/>инцидент: {selectedId}",
+                    });
+                }
+            }
+
+            await JS.InvokeVoidAsync("chopMaps.setMarkers", "operatorDashboardMap", markers);
+        }
+        catch (Exception ex)
+        {
+            _mapError = $"Ошибка обновления карты: {ex.Message}";
+        }
+    }
+
+    private async Task NavigateAlertTargetAsync(AlertListItemDto alert)
+    {
+        if (alert is null)
+        {
+            return;
+        }
+
+        var target = ResolveAlertTarget(alert.RuleCode);
+        if (!string.IsNullOrWhiteSpace(target.SectionId))
+        {
+            await JS.InvokeAsync<bool>("chopMaps.scrollToElement", target.SectionId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(target.MarkerId))
+        {
+            await JS.InvokeAsync<bool>("chopMaps.focusMarker", "operatorDashboardMap", target.MarkerId, 15);
+        }
+    }
+
+    private static string GetRuleBadgeLabel(string ruleCode) =>
+        ruleCode switch
+        {
+            "INCIDENT_ALERT_POINT_NO_GEO" => "Тревога без гео",
+            "INCIDENT_HOME_POINT_NO_GEO" => "Дом без гео",
+            "INCIDENT_POINT_CONFLICT" => "Конфликт точек",
+            "INCIDENT_SECOND_GROUP_MISSING" => "Нет 2-й группы",
+            "INCIDENT_NO_ACCEPT" => "Нет принятия",
+            "INCIDENT_NO_ACCEPT_STUCK" => "Нет принятия (SLA)",
+            "INCIDENT_GUARD_NO_PING" => "Нет пинга",
+            "INCIDENT_GUARD_OFFLINE" => "Охранник оффлайн",
+            "INCIDENT_STUCK_IN_STATUS" => "Застрял в статусе",
+            _ => ruleCode,
+        };
+
+    private static string GetRuleTargetLabel(string ruleCode) => ResolveAlertTarget(ruleCode).Label;
+
+    private static AlertTarget ResolveAlertTarget(string ruleCode) =>
+        ruleCode switch
+        {
+            "INCIDENT_ALERT_POINT_NO_GEO" => new("Точка дома", "home", "map-section"),
+            "INCIDENT_HOME_POINT_NO_GEO" => new("Точка тревоги", "alert", "map-section"),
+            "INCIDENT_POINT_CONFLICT" => new("Точки тревоги/дома", "alert:point-conflict", "map-section"),
+            "INCIDENT_SECOND_GROUP_MISSING" => new("Группы диспетчеризации", "alert:second-group-missing", "dispatch-section"),
+            "INCIDENT_NO_ACCEPT" => new("Группы диспетчеризации", "alert:no-accept", "dispatch-section"),
+            "INCIDENT_NO_ACCEPT_STUCK" => new("Группы диспетчеризации", "alert:no-accept-stuck", "dispatch-section"),
+            "INCIDENT_GUARD_NO_PING" => new("Диспетчеризация/охранники", "alert:no-ping", "dispatch-section"),
+            "INCIDENT_GUARD_OFFLINE" => new("Диспетчеризация/охранники", "alert:guard-offline", "dispatch-section"),
+            "INCIDENT_STUCK_IN_STATUS" => new("Статус инцидента", "alert:stuck-in-status", "alerts-section"),
+            _ => new("Инцидент", null, "alerts-section"),
+        };
+
+    private sealed record AlertTarget(string Label, string? MarkerId, string? SectionId);
+    private sealed record OnDutyGuardOption(string GuardUserId, string DisplayName, string? PostLabel);
+    private sealed record OnDutyGroupOption(
+        string Name,
+        string DisplayName,
+        IReadOnlyCollection<string> GuardUserIds,
+        IReadOnlyCollection<OnDutyGuardOption> Guards);
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            await ReloadOnDutyGroupsAsync();
+            var page = await ApiClient.GetIncidentsAsync(_statusFilter, null, null, 1, 50, CancellationToken.None);
+            _items.Clear();
+            _items.AddRange(page.Items);
+
+            if (_selectedIncidentId.HasValue && _items.All(x => x.Id != _selectedIncidentId.Value))
+            {
+                _selectedIncidentId = null;
+                _selectedDetails = null;
+            }
+
+            if (_selectedIncidentId.HasValue)
+            {
+                await LoadSelectedAsync(_selectedIncidentId.Value);
+            }
+
+            await UpdateMapAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SelectIncidentAsync(Guid id)
+    {
+        _selectedIncidentId = id;
+        _guardLocations.Clear();
+        await LoadSelectedAsync(id);
+    }
+
+    private async Task LoadSelectedAsync(Guid id)
+    {
+        _error = null;
+        try
+        {
+            _selectedDetails = await ApiClient.GetIncidentByIdAsync(id, CancellationToken.None);
+            _homeAddress = _selectedDetails?.Addresses
+                .OrderByDescending(x => x.IsPrimary)
+                .ThenBy(x => x.Label)
+                .FirstOrDefault();
+            var dispatches = _selectedDetails?.Dispatches
+                .OrderByDescending(x => x.CreatedAt)
+                .ToArray() ?? [];
+            _dispatchA = dispatches.FirstOrDefault(x => string.Equals(ExtractDispatchTag(x.Comment, "slot"), "A", StringComparison.OrdinalIgnoreCase));
+            _dispatchB = dispatches.FirstOrDefault(x => string.Equals(ExtractDispatchTag(x.Comment, "slot"), "B", StringComparison.OrdinalIgnoreCase));
+
+            if (_dispatchA is null)
+            {
+                _dispatchA = dispatches.ElementAtOrDefault(0);
+            }
+
+            if (_dispatchB is null)
+            {
+                _dispatchB = dispatches.FirstOrDefault(x => !ReferenceEquals(x, _dispatchA));
+            }
+
+            await ReloadAlertsAsync();
+            await UpdateMapAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private async Task ReloadAlertsAsync()
+    {
+        _alerts.Clear();
+        if (_selectedDetails is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var serverAlerts = await ApiClient.GetIncidentAlertsAsync(_selectedDetails.Id, includeResolved: true, CancellationToken.None);
+            _alerts.AddRange(serverAlerts);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = $"Не удалось загрузить алерты: {ex.Message}";
+        }
+    }
+
+    private async void OnIncidentCreated(Chop.Shared.Contracts.Realtime.IncidentCreatedEvent payload)
+    {
+        var mapped = new IncidentListItemDto
+        {
+            Id = payload.Incident.Id,
+            Status = payload.Incident.Status,
+            CreatedAt = payload.Incident.CreatedAt,
+            AddressSnapshot = payload.Incident.AddressSnapshot,
+            ClientSummary = payload.Incident.ClientSummary,
+            LastUpdatedAt = payload.Incident.LastUpdatedAt,
+        };
+
+        _items.RemoveAll(x => x.Id == mapped.Id);
+        _items.Insert(0, mapped);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnIncidentStatusChanged(Chop.Shared.Contracts.Realtime.IncidentStatusChangedEvent payload)
+    {
+        var existing = _items.FirstOrDefault(x => x.Id == payload.IncidentId);
+        if (existing is not null)
+        {
+            existing.Status = payload.ToStatus;
+            existing.LastUpdatedAt = payload.Incident.LastUpdatedAt;
+            existing.AddressSnapshot = payload.Incident.AddressSnapshot;
+            existing.ClientSummary = payload.Incident.ClientSummary;
+        }
+        else
+        {
+            _items.Insert(0, new IncidentListItemDto
+            {
+                Id = payload.Incident.Id,
+                Status = payload.Incident.Status,
+                CreatedAt = payload.Incident.CreatedAt,
+                AddressSnapshot = payload.Incident.AddressSnapshot,
+                ClientSummary = payload.Incident.ClientSummary,
+                LastUpdatedAt = payload.Incident.LastUpdatedAt,
+            });
+        }
+
+        if (_selectedIncidentId == payload.IncidentId)
+        {
+            await LoadSelectedAsync(payload.IncidentId);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnDispatchCreated(Chop.Shared.Contracts.Realtime.DispatchCreatedEvent payload)
+    {
+        if (_selectedIncidentId == payload.IncidentId)
+        {
+            await LoadSelectedAsync(payload.IncidentId);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnDispatchAccepted(Chop.Shared.Contracts.Realtime.DispatchAcceptedEvent payload)
+    {
+        if (_selectedIncidentId == payload.IncidentId)
+        {
+            await LoadSelectedAsync(payload.IncidentId);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async void OnGuardLocationUpdated(Chop.Shared.Contracts.Realtime.GuardLocationUpdatedEvent payload)
+    {
+        if (_selectedIncidentId is null || payload.IncidentId is null)
+        {
+            return;
+        }
+
+        if (payload.IncidentId.Value != _selectedIncidentId.Value)
+        {
+            return;
+        }
+
+        _guardLocations[payload.GuardUserId] = payload.Location;
+        await UpdateMapAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateDispatchGroupAsync(char group)
+    {
+        if (_selectedDetails is null)
+        {
+            return;
+        }
+
+        var selectedGroup = group == 'A' ? _dispatchAGroup : _dispatchBGroup;
+        var anotherSelectedGroup = group == 'A' ? _dispatchBGroup : _dispatchAGroup;
+        if (string.IsNullOrWhiteSpace(selectedGroup))
+        {
+            _error = $"Не выбрана группа {group}.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(anotherSelectedGroup) && string.Equals(selectedGroup, anotherSelectedGroup, StringComparison.OrdinalIgnoreCase))
+        {
+            _error = "Для группы A и группы B нужны разные группы.";
+            return;
+        }
+
+        var selected = _onDutyGroups.FirstOrDefault(x => string.Equals(x.Name, selectedGroup, StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            _error = $"Группа {selectedGroup} не найдена среди активных смен.";
+            return;
+        }
+
+        if (selected.GuardUserIds.Count == 0)
+        {
+            _error = $"В выбранной группе нет охранников на смене для группы {group}.";
+            return;
+        }
+
+        _busyDispatch = true;
+        _error = null;
+        try
+        {
+            var dto = new CreateDispatchDto
+            {
+                Method = _dispatchMethod,
+                Comment = BuildDispatchComment(group, selected.Name),
+                Recipients = selected.GuardUserIds.Select(x => new DispatchRecipientInputDto
+                {
+                    Type = "GUARD",
+                    Id = x,
+                }).ToArray(),
+            };
+
+            await ApiClient.CreateDispatchAsync(_selectedDetails.Id, dto, CancellationToken.None);
+            await LoadSelectedAsync(_selectedDetails.Id);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyDispatch = false;
+        }
+    }
+
+    private async Task ReloadOnDutyGroupsAsync()
+    {
+        var shifts = await BackofficeClient.GetActiveShiftsAsync(CancellationToken.None);
+        _onDutyGuardNames.Clear();
+        foreach (var shift in shifts.Where(x => !string.IsNullOrWhiteSpace(x.GuardUserId)))
+        {
+            _onDutyGuardNames[shift.GuardUserId] = string.IsNullOrWhiteSpace(shift.GuardFullName)
+                ? shift.GuardUserId
+                : shift.GuardFullName;
+        }
+
+        _onDutyGroups = shifts
+            .Where(x => !string.IsNullOrWhiteSpace(x.GuardGroupName))
+            .GroupBy(x => x.GuardGroupName!.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new OnDutyGroupOption(
+                group.Key,
+                $"{group.Key} ({group.Select(x => x.GuardUserId).Distinct(StringComparer.OrdinalIgnoreCase).Count()})",
+                group.Select(x => x.GuardUserId).Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+                group
+                    .Select(x => new OnDutyGuardOption(
+                        x.GuardUserId,
+                        !string.IsNullOrWhiteSpace(x.GuardFullName) ? x.GuardFullName : x.GuardUserId,
+                        x.SecurityPointLabel))
+                    .OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray()))
+            .Where(x => x.GuardUserIds.Count > 0)
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (_dispatchAGroup is not null && _onDutyGroups.All(x => !string.Equals(x.Name, _dispatchAGroup, StringComparison.OrdinalIgnoreCase)))
+        {
+            _dispatchAGroup = null;
+        }
+
+        if (_dispatchBGroup is not null && _onDutyGroups.All(x => !string.Equals(x.Name, _dispatchBGroup, StringComparison.OrdinalIgnoreCase)))
+        {
+            _dispatchBGroup = null;
+        }
+    }
+
+    private async Task AckAlertAsync(Guid alertId)
+    {
+        _busyAlertAction = true;
+        _error = null;
+        try
+        {
+            await ApiClient.AckAlertAsync(alertId, comment: null, CancellationToken.None);
+            await ReloadAlertsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyAlertAction = false;
+        }
+    }
+
+    private async Task ResolveAlertAsync(Guid alertId)
+    {
+        _busyAlertAction = true;
+        _error = null;
+        try
+        {
+            await ApiClient.ResolveAlertAsync(alertId, comment: null, CancellationToken.None);
+            await ReloadAlertsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyAlertAction = false;
+        }
+    }
+
+    private async Task AssignAlertToMeAsync(Guid alertId)
+    {
+        _busyAlertAction = true;
+        _error = null;
+        try
+        {
+            await ApiClient.AssignAlertAsync(alertId, Session.UserId, comment: null, CancellationToken.None);
+            await ReloadAlertsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyAlertAction = false;
+        }
+    }
+
+    private async Task OverrideAlertAsync(Guid alertId)
+    {
+        _busyAlertAction = true;
+        _error = null;
+        try
+        {
+            await ApiClient.OverrideAlertAsync(alertId, "Оверрайд оператором с дашборда.", CancellationToken.None);
+            await ReloadAlertsAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyAlertAction = false;
+        }
+    }
+
+    private string BuildDispatchComment(char slot, string groupName)
+    {
+        var target = slot == 'A' ? "ALERT" : "HOME";
+        var parts = new List<string>(capacity: 4);
+        if (!string.IsNullOrWhiteSpace(_dispatchComment))
+        {
+            parts.Add(_dispatchComment.Trim());
+        }
+
+        parts.Add($"[slot:{char.ToUpperInvariant(slot)}]");
+        parts.Add($"[target:{target}]");
+        parts.Add($"[group:{groupName}]");
+        return string.Join(" ", parts);
+    }
+
+    private static string ExtractDispatchTag(string? comment, string tag)
+    {
+        if (string.IsNullOrWhiteSpace(comment))
+        {
+            return string.Empty;
+        }
+
+        var marker = $"[{tag}:";
+        var start = comment.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+        if (start < 0)
+        {
+            return string.Empty;
+        }
+
+        start += marker.Length;
+        var end = comment.IndexOf(']', start);
+        if (end <= start)
+        {
+            return string.Empty;
+        }
+
+        return comment[start..end].Trim();
+    }
+
+    private static string GetDispatchGroupName(DispatchDto dispatch)
+    {
+        var group = ExtractDispatchTag(dispatch.Comment, "group");
+        return string.IsNullOrWhiteSpace(group) ? "Не указана" : group;
+    }
+
+    private static string GetDispatchTargetLabel(DispatchDto dispatch)
+    {
+        var target = ExtractDispatchTag(dispatch.Comment, "target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            var slot = ExtractDispatchTag(dispatch.Comment, "slot");
+            target = string.Equals(slot, "A", StringComparison.OrdinalIgnoreCase) ? "ALERT"
+                : string.Equals(slot, "B", StringComparison.OrdinalIgnoreCase) ? "HOME"
+                : string.Empty;
+        }
+
+        return target.ToUpperInvariant() switch
+        {
+            "ALERT" => "Точка тревоги",
+            "HOME" => "Точка дома",
+            _ => "Не указано",
+        };
+    }
+
+    private string GetGuardDisplayName(string guardUserId)
+    {
+        if (_onDutyGuardNames.TryGetValue(guardUserId, out var fullName) && !string.IsNullOrWhiteSpace(fullName))
+        {
+            return $"{fullName} ({guardUserId})";
+        }
+
+        return guardUserId;
+    }
+
+    private static string TranslateDispatchRecipientStatus(string status) =>
+        status.ToUpperInvariant() switch
+        {
+            "SENT" => "Отправлено",
+            "ACCEPTED" => "Принято",
+            "DECLINED" => "Отклонено",
+            _ => status,
+        };
+
+    private static string BuildYandexMapsLink(double lat, double lon)
+        => $"https://yandex.com/maps/?pt={lon.ToString(System.Globalization.CultureInfo.InvariantCulture)},{lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}&z=15&l=map";
+
+    private static string FormatLocation(IncidentLocationDto? location)
+        => location is null ? "geo: -"
+            : $"geo: {location.Lat.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {location.Lon.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    private static string TranslateStatus(string status) =>
+        status switch
+        {
+            "NEW" => "Новый",
+            "ACKED" => "Принят оператором",
+            "DISPATCHED" => "Назначены группы",
+            "ACCEPTED" => "Принят охранником",
+            "EN_ROUTE" => "В пути",
+            "ON_SCENE" => "На месте",
+            "RESOLVED" => "Завершен",
+            "CANCELED" => "Отменен",
+            "FALSE_ALARM" => "Ложный вызов",
+            "FAILED" => "Ошибка обработки",
+            _ => status,
+        };
+
+    private static string TranslateSeverity(string severity) =>
+        severity switch
+        {
+            "CRITICAL" => "КРИТИЧНО",
+            "WARN" => "ПРЕДУПР.",
+            "INFO" => "ИНФО",
+            _ => severity,
+        };
+
+    private static string TranslateAlertStatus(string status) =>
+        status switch
+        {
+            "OPEN" => "ОТКРЫТ",
+            "ACKED" => "ПОДТВЕРЖДЕН",
+            "RESOLVED" => "ЗАКРЫТ",
+            _ => status,
+        };
+
+    public void Dispose()
+    {
+        RealtimeClient.IncidentCreated -= OnIncidentCreated;
+        RealtimeClient.IncidentStatusChanged -= OnIncidentStatusChanged;
+        RealtimeClient.DispatchCreated -= OnDispatchCreated;
+        RealtimeClient.DispatchAccepted -= OnDispatchAccepted;
+        RealtimeClient.GuardLocationUpdated -= OnGuardLocationUpdated;
+    }
+}
+
+

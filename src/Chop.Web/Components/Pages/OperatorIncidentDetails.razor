@@ -1,0 +1,250 @@
+﻿@page "/operator/incidents/{Id:guid}"
+@using Chop.Shared.Contracts.Incidents
+@inject Chop.Web.Incidents.IncidentsApiClient ApiClient
+@inject Chop.Web.Incidents.IncidentRealtimeClient RealtimeClient
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<PageTitle>Детали инцидента</PageTitle>
+
+<h1 class="mb-4">Инцидент @Id</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger">@_error</div>
+}
+else if (_item is null)
+{
+    <div class="tw-alert-warning">Инцидент не найден.</div>
+}
+else
+{
+    <div class="grid gap-4 lg:grid-cols-3">
+        <div class="lg:col-span-2 space-y-4">
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <div class="grid gap-2 sm:grid-cols-3">
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Статус</div>
+                            <div class="text-sm font-medium text-ink-900">@TranslateStatus(_item.Status)</div>
+                        </div>
+                        <div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Создан</div>
+                            <div class="text-sm text-ink-900">@_item.CreatedAt.ToLocalTime().ToString("g")</div>
+                        </div>
+                        <div class="sm:col-span-3">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Адрес</div>
+                            <div class="text-sm text-ink-900">@_item.AddressSnapshot</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <h2 class="mb-2 text-lg font-semibold tracking-tight">Клиент</h2>
+                    <div class="text-sm"><span class="text-ink-500">ФИО:</span> <span class="font-medium">@_item.Client.FullName</span></div>
+                    <div class="text-sm"><span class="text-ink-500">Телефоны:</span> @string.Join(", ", _item.Client.Phones.Select(x => x.Phone))</div>
+                </div>
+            </div>
+
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <h2 class="mb-3 text-lg font-semibold tracking-tight">Смена статуса</h2>
+                    <div class="grid gap-3 md:grid-cols-12">
+                        <div class="md:col-span-3">
+                            <label class="block text-sm font-medium text-ink-700">Новый статус</label>
+                            <select class="tw-select mt-1" @bind="_changeStatus.ToStatus">
+                                @foreach (var option in _statusOptions)
+                                {
+                                    <option value="@option">@TranslateStatus(option)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="md:col-span-7">
+                            <label class="block text-sm font-medium text-ink-700">Комментарий (обязательно)</label>
+                            <input class="tw-input mt-1" @bind="_changeStatus.Comment" placeholder="Причина / комментарий" />
+                        </div>
+                        <div class="md:col-span-2 flex items-end">
+                            <button class="tw-btn-warning w-full" @onclick="SubmitStatusChangeAsync" disabled="@_saving">Применить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <h2 class="mb-3 text-lg font-semibold tracking-tight">История</h2>
+                    <table class="tw-table">
+                        <thead>
+                            <tr>
+                                <th class="tw-th">Время</th>
+                                <th class="tw-th">Из</th>
+                                <th class="tw-th">В</th>
+                                <th class="tw-th">Кто</th>
+                                <th class="tw-th">Комментарий</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in _item.History.OrderByDescending(x => x.CreatedAt))
+                            {
+                                <tr class="odd:bg-white even:bg-ink-50">
+                                    <td class="tw-td whitespace-nowrap">@h.CreatedAt.ToLocalTime().ToString("g")</td>
+                                    <td class="tw-td whitespace-nowrap">@TranslateStatus(h.FromStatus)</td>
+                                    <td class="tw-td whitespace-nowrap">@TranslateStatus(h.ToStatus)</td>
+                                    <td class="tw-td">@h.ActorRole (@h.ActorUserId)</td>
+                                    <td class="tw-td">@h.Comment</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div class="tw-card">
+                <div class="tw-card-body">
+                    <h2 class="mb-2 text-lg font-semibold tracking-tight">Адреса</h2>
+                    <div class="space-y-2 text-sm">
+                        @foreach (var a in _item.Addresses)
+                        {
+                            <div class="rounded-lg border border-ink-200 bg-white p-3">
+                                <div class="font-medium">@a.Label</div>
+                                <div class="text-ink-600">@a.Address</div>
+                                @if (a.Location is not null)
+                                {
+                                    <div class="mt-1 text-xs text-ink-500">Гео: @a.Location.Lat, @a.Location.Lon</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private IncidentDetailsDto? _item;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private readonly ChangeIncidentStatusDto _changeStatus = new() { ToStatus = "CANCELED" };
+    private readonly string[] _statusOptions = ["CANCELED", "FALSE_ALARM", "RESOLVED", "FAILED"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(Chop.Web.Auth.RoleConstants.OpsRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        RealtimeClient.IncidentStatusChanged += OnIncidentStatusChanged;
+        await RealtimeClient.EnsureConnectedAsync(CancellationToken.None);
+        await LoadAsync();
+    }
+
+    private async void OnIncidentStatusChanged(Chop.Shared.Contracts.Realtime.IncidentStatusChangedEvent payload)
+    {
+        if (payload.IncidentId != Id)
+        {
+            return;
+        }
+
+        await LoadAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _item = await ApiClient.GetIncidentByIdAsync(Id, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SubmitStatusChangeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_changeStatus.Comment))
+        {
+            _error = "Комментарий обязателен.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            await ApiClient.ChangeStatusAsync(Id, _changeStatus, CancellationToken.None);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        RealtimeClient.IncidentStatusChanged -= OnIncidentStatusChanged;
+    }
+
+    private static string TranslateStatus(string? status) =>
+        status switch
+        {
+            null => "-",
+            "NEW" => "Новый",
+            "ACKED" => "Принят оператором",
+            "DISPATCHED" => "Назначены группы",
+            "ACCEPTED" => "Принят охранником",
+            "EN_ROUTE" => "В пути",
+            "ON_SCENE" => "На месте",
+            "RESOLVED" => "Завершен",
+            "CANCELED" => "Отменен",
+            "FALSE_ALARM" => "Ложный вызов",
+            "FAILED" => "Ошибка обработки",
+            _ => status,
+        };
+}
+
+

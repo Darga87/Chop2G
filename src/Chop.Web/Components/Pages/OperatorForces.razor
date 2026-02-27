@@ -1,0 +1,131 @@
+@page "/operator/forces"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Локация групп</PageTitle>
+
+<h1 class="mb-4">Локация групп</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger">@_error</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по имени, позывному, подразделению" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Доступность</label>
+                    <select class="tw-select mt-1" @bind="_availability">
+                        <option value="all">Любая</option>
+                        <option value="AVAILABLE">Доступен</option>
+                        <option value="BUSY">Занят</option>
+                        <option value="OFFLINE">Оффлайн</option>
+                    </select>
+                </div>
+                <div class="md:col-span-3 flex items-end">
+                    <label class="flex items-center gap-2 text-sm text-ink-700">
+                        <input id="onlineOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_onlineOnly" />
+                        <span>Только онлайн</span>
+                    </label>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Позывной</th>
+                <th class="tw-th">ФИО</th>
+                <th class="tw-th">Роль</th>
+                <th class="tw-th">Группа</th>
+                <th class="tw-th">Пост</th>
+                <th class="tw-th">Контакты</th>
+                <th class="tw-th">Доступность</th>
+                <th class="tw-th">Присутствие</th>
+                <th class="tw-th">Последняя гео</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var force in _forces)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap font-medium">@force.CallSign</td>
+                    <td class="tw-td">@force.FullName</td>
+                    <td class="tw-td whitespace-nowrap">@force.Role</td>
+                    <td class="tw-td">@force.Unit</td>
+                    <td class="tw-td">@force.Post</td>
+                    <td class="tw-td whitespace-nowrap">@($"{force.Phone} / {force.Radio}")</td>
+                    <td class="tw-td whitespace-nowrap">@force.Availability</td>
+                    <td class="tw-td whitespace-nowrap">@(force.IsOnline ? "ОНЛАЙН" : "ОФФЛАЙН")</td>
+                    <td class="tw-td whitespace-nowrap">@force.LastLocationAtUtc.ToLocalTime().ToString("g")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private string? _search;
+    private string _availability = "all";
+    private bool _onlineOnly;
+    private IReadOnlyCollection<OperatorForceItemDto> _forces = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.OpsRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _forces = await Store.GetForcesAsync(_search, _availability, _onlineOnly, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
+
+

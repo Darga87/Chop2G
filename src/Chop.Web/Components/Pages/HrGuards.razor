@@ -1,0 +1,484 @@
+@page "/hr/guards"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Охранники (HR)</PageTitle>
+
+<h1 class="mb-4">Охранники (HR)</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="tw-alert-danger mb-4">@_error</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_success))
+    {
+        <div class="tw-alert-success mb-4">@_success</div>
+    }
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="mb-2 text-sm font-semibold text-ink-900">Создать охранника</div>
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">ФИО</label>
+                    <input class="tw-input mt-1" @bind="_newGuardFullName" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Позывной</label>
+                    <input class="tw-input mt-1" @bind="_newGuardCallSign" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Логин</label>
+                    <input class="tw-input mt-1" @bind="_newGuardLogin" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Пароль</label>
+                    <input class="tw-input mt-1" type="password" @bind="_newGuardPassword" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Телефон</label>
+                    <input class="tw-input mt-1" @bind="_newGuardPhone" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Email</label>
+                    <input class="tw-input mt-1" @bind="_newGuardEmail" />
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-primary w-full" @onclick="CreateGuardAsync" disabled="@_busy">Создать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск охранника по имени" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Статус</label>
+                    <select class="tw-select mt-1" @bind="_status">
+                        <option value="all">Все статусы</option>
+                        <option value="active">Активный</option>
+                        <option value="inactive">Неактивный</option>
+                    </select>
+                </div>
+                <div class="md:col-span-3 flex items-end">
+                    <label class="flex items-center gap-2 text-sm text-ink-700">
+                        <input id="onShiftOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_onShiftOnly" />
+                        <span>Только на смене</span>
+                    </label>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync" disabled="@_busy">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="tw-table min-w-full">
+            <thead>
+                <tr>
+                    <th class="tw-th">Позывной</th>
+                    <th class="tw-th">ФИО</th>
+                    <th class="tw-th">Телефон</th>
+                    <th class="tw-th">Статус</th>
+                    <th class="tw-th">Смена</th>
+                    <th class="tw-th">Группа</th>
+                    <th class="tw-th">Пост</th>
+                    <th class="tw-th">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var guard in _guards)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td whitespace-nowrap">@guard.CallSign</td>
+                        <td class="tw-td">
+                            <div>@guard.FullName</div>
+                            <div class="text-xs text-ink-600">@guard.UpdatedAtUtc.ToLocalTime().ToString("g")</div>
+                        </td>
+                        <td class="tw-td whitespace-nowrap">@guard.Phone</td>
+                        <td class="tw-td whitespace-nowrap">@(guard.IsActive ? "АКТИВЕН" : "НЕАКТИВЕН")</td>
+                        <td class="tw-td whitespace-nowrap">@(guard.OnShift ? "НА СМЕНЕ" : "ВНЕ СМЕНЫ")</td>
+                        <td class="tw-td">@(!string.IsNullOrWhiteSpace(guard.GroupName) ? guard.GroupName : "-")</td>
+                        <td class="tw-td">@(!string.IsNullOrWhiteSpace(guard.AssignedPost) ? guard.AssignedPost : "-")</td>
+                        <td class="tw-td">
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="tw-btn-outline" @onclick="() => StartEdit(guard)" disabled="@_busy">Редактировать</button>
+                                <button
+                                    type="button"
+                                    class="@(guard.IsActive ? "tw-btn-danger" : "tw-btn-secondary")"
+                                    @onclick="() => ToggleStatusAsync(guard.Id)"
+                                    disabled="@_busy">
+                                    @(guard.IsActive ? "Деактивировать" : "Активировать")
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr class="bg-ink-50/70">
+                        <td class="tw-td" colspan="8">
+                            @if (_editingGuardId == guard.Id)
+                            {
+                                <div class="grid gap-2 md:grid-cols-12">
+                                    <div class="md:col-span-3">
+                                        <label class="block text-xs font-medium text-ink-700">ФИО</label>
+                                        <input class="tw-input mt-1" @bind="_editFullName" />
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-medium text-ink-700">Позывной</label>
+                                        <input class="tw-input mt-1" @bind="_editCallSign" />
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label class="block text-xs font-medium text-ink-700">Телефон</label>
+                                        <input class="tw-input mt-1" @bind="_editPhone" />
+                                    </div>
+                                    <div class="md:col-span-3">
+                                        <label class="block text-xs font-medium text-ink-700">Email</label>
+                                        <input class="tw-input mt-1" @bind="_editEmail" />
+                                    </div>
+                                    <div class="md:col-span-2 flex items-end gap-2">
+                                        <button type="button" class="tw-btn-primary w-full" @onclick="() => SaveEditAsync(guard.Id)" disabled="@_busy">Сохранить</button>
+                                        <button type="button" class="tw-btn-outline w-full" @onclick="CancelEdit" disabled="@_busy">Отмена</button>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="mt-2 grid gap-2 md:grid-cols-12">
+                                @if (guard.OnShift)
+                                {
+                                    <div class="md:col-span-9 text-sm text-ink-700">
+                                        Охранник на смене
+                                        @if (guard.ShiftStartedAtUtc.HasValue)
+                                        {
+                                            <span>с @guard.ShiftStartedAtUtc.Value.ToLocalTime().ToString("g")</span>
+                                        }
+                                    </div>
+                                    <div class="md:col-span-3">
+                                        <button type="button" class="tw-btn-danger w-full" @onclick="() => EndShiftAsync(guard)" disabled="@_busy">Завершить смену</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="md:col-span-4">
+                                        <label class="block text-xs font-medium text-ink-700">Группа (опционально)</label>
+                                        <select
+                                            class="tw-select mt-1"
+                                            value="@GetStartGroupId(guard.Id)"
+                                            @onchange="e => SetStartGroupId(guard.Id, e.Value?.ToString())">
+                                            <option value="">Без группы</option>
+                                            @foreach (var group in _groups)
+                                            {
+                                                <option value="@group.Id.ToString("D")">@group.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="md:col-span-4">
+                                        <label class="block text-xs font-medium text-ink-700">Пост (опционально)</label>
+                                        <select
+                                            class="tw-select mt-1"
+                                            value="@GetStartPointId(guard.Id)"
+                                            @onchange="e => SetStartPointId(guard.Id, e.Value?.ToString())">
+                                            <option value="">Без поста</option>
+                                            @foreach (var point in _points)
+                                            {
+                                                <option value="@point.Id.ToString("D")">@point.Label (@point.Code)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="md:col-span-4 flex items-end">
+                                        <button type="button" class="tw-btn-primary w-full" @onclick="() => StartShiftAsync(guard)" disabled="@_busy || !guard.IsActive">Начать смену</button>
+                                    </div>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private string? _success;
+    private string? _search;
+    private string _status = "all";
+    private bool _onShiftOnly;
+    private IReadOnlyCollection<GuardItemDto> _guards = [];
+    private IReadOnlyCollection<GuardGroupItemDto> _groups = [];
+    private IReadOnlyCollection<OperatorPointItemDto> _points = [];
+    private readonly Dictionary<Guid, string?> _startGroupByGuard = [];
+    private readonly Dictionary<Guid, string?> _startPointByGuard = [];
+    private string? _newGuardFullName;
+    private string? _newGuardCallSign;
+    private string? _newGuardLogin;
+    private string? _newGuardPassword;
+    private string? _newGuardPhone;
+    private string? _newGuardEmail;
+    private Guid? _editingGuardId;
+    private string? _editFullName;
+    private string? _editCallSign;
+    private string? _editPhone;
+    private string? _editEmail;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.HrRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _success = null;
+        try
+        {
+            _guards = await Store.GetGuardsAsync(_search, _status, _onShiftOnly, CancellationToken.None);
+            _groups = await Store.GetGuardGroupsAsync(CancellationToken.None);
+            _points = await Store.GetPointsAsync(null, "all", includeInactive: false, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void StartEdit(GuardItemDto guard)
+    {
+        _editingGuardId = guard.Id;
+        _editFullName = guard.FullName;
+        _editCallSign = guard.CallSign;
+        _editPhone = guard.Phone == "-" ? null : guard.Phone;
+        _editEmail = guard.Email == "-" ? null : guard.Email;
+        _error = null;
+        _success = null;
+    }
+
+    private void CancelEdit()
+    {
+        _editingGuardId = null;
+        _editFullName = null;
+        _editCallSign = null;
+        _editPhone = null;
+        _editEmail = null;
+    }
+
+    private async Task SaveEditAsync(Guid guardId)
+    {
+        _error = null;
+        _success = null;
+        _busy = true;
+        try
+        {
+            await Store.UpdateGuardAsync(guardId, new UpdateGuardRequestDto
+            {
+                FullName = _editFullName ?? string.Empty,
+                CallSign = _editCallSign ?? string.Empty,
+                Phone = _editPhone,
+                Email = _editEmail,
+            }, CancellationToken.None);
+            CancelEdit();
+            _success = "Профиль охранника обновлен.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ToggleStatusAsync(Guid guardId)
+    {
+        _error = null;
+        _success = null;
+        _busy = true;
+        try
+        {
+            await Store.ToggleGuardActiveAsync(guardId, CancellationToken.None);
+            _success = "Статус охранника обновлен.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task CreateGuardAsync()
+    {
+        _error = null;
+        _success = null;
+        _busy = true;
+        try
+        {
+            await Store.CreateGuardAsync(new CreateGuardRequestDto
+            {
+                FullName = _newGuardFullName ?? string.Empty,
+                CallSign = _newGuardCallSign ?? string.Empty,
+                Login = _newGuardLogin ?? string.Empty,
+                Password = _newGuardPassword ?? string.Empty,
+                Phone = _newGuardPhone,
+                Email = _newGuardEmail,
+            }, CancellationToken.None);
+
+            _newGuardFullName = null;
+            _newGuardCallSign = null;
+            _newGuardLogin = null;
+            _newGuardPassword = null;
+            _newGuardPhone = null;
+            _newGuardEmail = null;
+            _success = "Охранник создан.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task StartShiftAsync(GuardItemDto guard)
+    {
+        _error = null;
+        _success = null;
+        _busy = true;
+        try
+        {
+            await Store.StartShiftAsync(new StartGuardShiftRequestDto
+            {
+                GuardUserId = guard.Id.ToString("D"),
+                GuardGroupId = ParseNullableGuid(GetStartGroupId(guard.Id)),
+                SecurityPointId = ParseNullableGuid(GetStartPointId(guard.Id)),
+            }, CancellationToken.None);
+            _success = $"Смена открыта: {guard.FullName}.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task EndShiftAsync(GuardItemDto guard)
+    {
+        _error = null;
+        _success = null;
+        _busy = true;
+        try
+        {
+            await Store.EndShiftAsync(guard.Id.ToString("D"), CancellationToken.None);
+            _success = $"Смена завершена: {guard.FullName}.";
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private string? GetStartGroupId(Guid guardId)
+    {
+        _startGroupByGuard.TryGetValue(guardId, out var value);
+        return value;
+    }
+
+    private void SetStartGroupId(Guid guardId, string? value)
+    {
+        _startGroupByGuard[guardId] = value;
+    }
+
+    private string? GetStartPointId(Guid guardId)
+    {
+        _startPointByGuard.TryGetValue(guardId, out var value);
+        return value;
+    }
+
+    private void SetStartPointId(Guid guardId, string? value)
+    {
+        _startPointByGuard[guardId] = value;
+    }
+
+    private static Guid? ParseNullableGuid(string? value)
+    {
+        return Guid.TryParse(value, out var parsed) ? parsed : null;
+    }
+}

@@ -1,0 +1,180 @@
+@page "/operator/incidents"
+@using Chop.Shared.Contracts.Incidents
+@inject Chop.Web.Incidents.IncidentsApiClient ApiClient
+@inject Chop.Web.Incidents.IncidentRealtimeClient RealtimeClient
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<PageTitle>Инциденты</PageTitle>
+
+<h1 class="mb-4">Инциденты</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger">@_error</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-6">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Статус</label>
+                    <input class="tw-input mt-1" @bind="_statusFilter" placeholder="ACKED/CANCELED/..." />
+                </div>
+                <div class="md:col-span-1 flex items-end">
+                    <button class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Создан</th>
+                <th class="tw-th">Статус</th>
+                <th class="tw-th">Клиент</th>
+                <th class="tw-th">Адрес</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _items)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@item.CreatedAt.ToLocalTime().ToString("g")</td>
+                    <td class="tw-td whitespace-nowrap">@TranslateStatus(item.Status)</td>
+                    <td class="tw-td">@item.ClientSummary</td>
+                    <td class="tw-td">@item.AddressSnapshot</td>
+                    <td>
+                        <a class="tw-btn-outline" href="@($"/operator/incidents/{item.Id}")">Открыть</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private readonly List<IncidentListItemDto> _items = [];
+    private bool _loading = true;
+    private string? _error;
+    private string? _statusFilter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(Chop.Web.Auth.RoleConstants.OpsRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        RealtimeClient.IncidentCreated += OnIncidentCreated;
+        RealtimeClient.IncidentStatusChanged += OnIncidentStatusChanged;
+        await RealtimeClient.EnsureConnectedAsync(CancellationToken.None);
+        await ReloadAsync();
+    }
+
+    private async void OnIncidentCreated(Chop.Shared.Contracts.Realtime.IncidentCreatedEvent payload)
+    {
+        var mapped = new IncidentListItemDto
+        {
+            Id = payload.Incident.Id,
+            Status = payload.Incident.Status,
+            CreatedAt = payload.Incident.CreatedAt,
+            AddressSnapshot = payload.Incident.AddressSnapshot,
+            ClientSummary = payload.Incident.ClientSummary,
+            LastUpdatedAt = payload.Incident.LastUpdatedAt,
+        };
+
+        _items.RemoveAll(x => x.Id == mapped.Id);
+        _items.Insert(0, mapped);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnIncidentStatusChanged(Chop.Shared.Contracts.Realtime.IncidentStatusChangedEvent payload)
+    {
+        var existing = _items.FirstOrDefault(x => x.Id == payload.IncidentId);
+        if (existing is not null)
+        {
+            existing.Status = payload.ToStatus;
+            existing.LastUpdatedAt = payload.Incident.LastUpdatedAt;
+            existing.AddressSnapshot = payload.Incident.AddressSnapshot;
+            existing.ClientSummary = payload.Incident.ClientSummary;
+        }
+        else
+        {
+            _items.Insert(0, new IncidentListItemDto
+            {
+                Id = payload.Incident.Id,
+                Status = payload.Incident.Status,
+                CreatedAt = payload.Incident.CreatedAt,
+                AddressSnapshot = payload.Incident.AddressSnapshot,
+                ClientSummary = payload.Incident.ClientSummary,
+                LastUpdatedAt = payload.Incident.LastUpdatedAt,
+            });
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var page = await ApiClient.GetIncidentsAsync(_statusFilter, null, null, 1, 50, CancellationToken.None);
+            _items.Clear();
+            _items.AddRange(page.Items);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        RealtimeClient.IncidentCreated -= OnIncidentCreated;
+        RealtimeClient.IncidentStatusChanged -= OnIncidentStatusChanged;
+    }
+
+    private static string TranslateStatus(string status) =>
+        status switch
+        {
+            "NEW" => "Новый",
+            "ACKED" => "Принят оператором",
+            "DISPATCHED" => "Назначены группы",
+            "ACCEPTED" => "Принят охранником",
+            "EN_ROUTE" => "В пути",
+            "ON_SCENE" => "На месте",
+            "RESOLVED" => "Завершен",
+            "CANCELED" => "Отменен",
+            "FALSE_ALARM" => "Ложный вызов",
+            "FAILED" => "Ошибка обработки",
+            _ => status,
+        };
+}
+

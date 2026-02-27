@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Chop.Api/Chop.Api.csproj" />
+    <Project Path="src/Chop.Domain/Chop.Domain.csproj" />
+    <Project Path="src/Chop.Infrastructure/Chop.Infrastructure.csproj" />
+    <Project Path="src/Chop.Shared/Chop.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Chop.Api.Tests/Chop.Api.Tests.csproj" />
+  </Folder>
+</Solution>

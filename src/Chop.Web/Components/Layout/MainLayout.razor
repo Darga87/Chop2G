@@ -1,0 +1,107 @@
+@inherits LayoutComponentBase
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject IJSRuntime JS
+
+<div class="tw-page">
+    <div class="flex min-h-screen">
+        <aside class="hidden md:flex md:w-64 md:flex-col tw-shell-sidebar">
+            <div class="px-4 py-4 border-b border-white/10">
+                <a href="/" class="text-lg font-semibold tracking-tight text-white no-underline hover:text-white">Chop Console</a>
+                <div class="mt-1 text-xs tw-shell-sidebar-muted">Веб-консоль</div>
+            </div>
+            <div class="flex-1 overflow-auto px-2 py-3">
+                <NavMenu />
+            </div>
+        </aside>
+
+        <div class="flex min-w-0 flex-1 flex-col">
+            <header class="sticky top-0 z-10 tw-shell-header backdrop-blur">
+                <div class="tw-shell flex h-14 items-center justify-between">
+                    <details class="md:hidden">
+                        <summary class="tw-btn-outline">Меню</summary>
+                        <div class="mt-2 rounded-xl border p-2 shadow-sm" style="border-color: var(--ui-border); background: var(--ui-surface-1);">
+                            <NavMenu />
+                        </div>
+                    </details>
+
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs tw-shell-sidebar-muted" for="theme-picker">Тема</label>
+                            <select id="theme-picker" class="tw-select w-28 py-1 text-xs" value="@_theme" @onchange="OnThemeChanged">
+                                <option value="theme-a">UI-kit A</option>
+                                <option value="theme-b">UI-kit B</option>
+                                <option value="theme-c">UI-kit C</option>
+                            </select>
+                        </div>
+
+                        <div class="text-sm tw-shell-sidebar-muted">
+                            @if (Session.IsAuthenticated)
+                            {
+                                <span>Пользователь: <span class="font-medium text-white">@Session.UserId</span> <span class="tw-shell-sidebar-muted">(@string.Join(",", Session.Roles))</span></span>
+                            }
+                            else
+                            {
+                                <span class="tw-shell-sidebar-muted">Не авторизован</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="tw-shell flex-1 py-6">
+                @Body
+            </main>
+        </div>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Произошла непредвиденная ошибка.
+    <a href="." class="reload">Перезагрузить</a>
+    <span class="dismiss">x</span>
+</div>
+
+@code {
+    private string _theme = "theme-b";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            var theme = await JS.InvokeAsync<string>("chopTheme.get");
+            if (!string.IsNullOrWhiteSpace(theme))
+            {
+                _theme = theme;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch
+        {
+            // Theme picker keeps default when JS runtime is unavailable.
+        }
+    }
+
+    private async Task OnThemeChanged(ChangeEventArgs args)
+    {
+        var selected = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            return;
+        }
+
+        _theme = selected;
+        try
+        {
+            await JS.InvokeVoidAsync("chopTheme.set", _theme);
+        }
+        catch
+        {
+            // No-op; UI keeps selected value.
+        }
+    }
+}

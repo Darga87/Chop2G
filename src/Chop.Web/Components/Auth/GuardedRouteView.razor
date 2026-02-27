@@ -1,0 +1,43 @@
+@using Chop.Web.Auth
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+@if (_allowRender)
+{
+    <RouteView RouteData="RouteData" DefaultLayout="DefaultLayout" />
+}
+
+@code {
+    [Parameter, EditorRequired] public RouteData RouteData { get; set; } = default!;
+    [Parameter, EditorRequired] public Type DefaultLayout { get; set; } = default!;
+
+    private bool _allowRender;
+
+    protected override void OnParametersSet()
+    {
+        var relativePath = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).Split('?', '#')[0];
+        var policy = WebRouteAccess.Resolve(relativePath);
+
+        if (!policy.RequiresAuthentication)
+        {
+            _allowRender = true;
+            return;
+        }
+
+        if (!Session.IsAuthenticated)
+        {
+            _allowRender = false;
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (policy.AllowedRoles.Count > 0 && !Session.IsInAnyRole(policy.AllowedRoles.ToArray()))
+        {
+            _allowRender = false;
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        _allowRender = true;
+    }
+}

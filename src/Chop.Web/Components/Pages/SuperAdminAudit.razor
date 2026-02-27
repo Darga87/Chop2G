@@ -1,0 +1,84 @@
+@page "/superadmin/audit"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Аудит суперадмина</PageTitle>
+
+<h1 class="mb-4">Аудит суперадмина</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по пользователю, действию, цели, результату" />
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Время</th>
+                <th class="tw-th">Пользователь</th>
+                <th class="tw-th">Действие</th>
+                <th class="tw-th">Цель</th>
+                <th class="tw-th">Результат</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in _audit)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@item.AtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="tw-td whitespace-nowrap">@item.Actor</td>
+                    <td class="tw-td">@item.Action</td>
+                    <td class="tw-td">@item.Target</td>
+                    <td class="tw-td whitespace-nowrap">@item.Result</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _search;
+    private IReadOnlyCollection<SuperAdminAuditItemDto> _audit = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.SuperAdminOnlyRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _audit = await Store.GetSuperAdminAuditAsync(_search, CancellationToken.None);
+        _loading = false;
+    }
+}
+

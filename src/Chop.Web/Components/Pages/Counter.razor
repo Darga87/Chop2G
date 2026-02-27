@@ -1,0 +1,39 @@
+@page "/counter"
+@rendermode InteractiveServer
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Счетчик</PageTitle>
+
+<h1 class="mb-4">Счетчик</h1>
+
+<div class="tw-card">
+    <div class="tw-card-body space-y-3">
+        <p role="status" class="text-sm text-ink-700">Текущее значение: <span class="font-semibold text-ink-900">@currentCount</span></p>
+
+        <button class="tw-btn-primary" @onclick="IncrementCount">Увеличить</button>
+    </div>
+</div>
+
+@code {
+    private int currentCount;
+
+    protected override void OnInitialized()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(Chop.Web.Auth.RoleConstants.SuperAdminOnlyRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+        }
+    }
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+}

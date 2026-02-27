@@ -1,0 +1,15 @@
+{
+  "name": "chop2g-ui",
+  "private": true,
+  "devDependencies": {
+    "tailwindcss": "3.4.14"
+  },
+  "scripts": {
+    "build:css:web": "tailwindcss -c tailwind.config.cjs -i ./styles/tailwind.css -o ./src/Chop.Web/wwwroot/app.css",
+    "build:css:mobile": "tailwindcss -c tailwind.config.cjs -i ./styles/tailwind.css -o ./src/Chop.App.Mobile/wwwroot/app.css",
+    "build:css": "npm run build:css:web && npm run build:css:mobile",
+    "watch:css:web": "tailwindcss -c tailwind.config.cjs -i ./styles/tailwind.css -o ./src/Chop.Web/wwwroot/app.css --watch",
+    "watch:css:mobile": "tailwindcss -c tailwind.config.cjs -i ./styles/tailwind.css -o ./src/Chop.App.Mobile/wwwroot/app.css --watch"
+  }
+}
+

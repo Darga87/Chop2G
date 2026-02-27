@@ -1,0 +1,596 @@
+@page "/admin/clients"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Клиенты (админ)</PageTitle>
+
+<h1 class="mb-4">Клиенты (админ)</h1>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger mb-4">@_error</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(_success))
+{
+    <div class="tw-alert-success mb-4">@_success</div>
+}
+
+<div class="tw-card mb-4">
+    <div class="tw-card-body">
+        <div class="mb-2 text-sm font-semibold text-ink-900">@(_editClientId is null ? "Создать клиента" : "Редактировать клиента")</div>
+        <div class="grid gap-3 md:grid-cols-12">
+            @if (_editClientId is null)
+            {
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Логин</label>
+                    <input class="tw-input mt-1" @bind="_create.Login" placeholder="client.login" />
+                </div>
+            }
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-ink-700">ФИО</label>
+                <input class="tw-input mt-1" @bind="_form.FullName" placeholder="Иванов Иван Иванович" />
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-ink-700">Email</label>
+                <input class="tw-input mt-1" @bind="_form.Email" placeholder="client@example.com" />
+            </div>
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-ink-700">Тариф</label>
+                <select class="tw-select mt-1" @bind="_form.Tariff">
+                    @if (_tariffs.Count == 0)
+                    {
+                        <option value="STANDARD">STANDARD</option>
+                    }
+                    else
+                    {
+                        @foreach (var tariff in _tariffs)
+                        {
+                            <option value="@tariff.Code">@($"{tariff.Name} ({tariff.Code})")</option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <div class="md:col-span-3">
+                <label class="block text-sm font-medium text-ink-700">Статус биллинга</label>
+                <select class="tw-select mt-1" @bind="_form.BillingStatus">
+                    <option value="ACTIVE">Активен</option>
+                    <option value="DEBT">Долг</option>
+                    <option value="PAUSED">Приостановлен</option>
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-ink-700">Последний платеж</label>
+                <InputDate class="tw-input mt-1" Type="InputDateType.DateTimeLocal" @bind-Value="_lastPaymentLocal" />
+            </div>
+            <div class="md:col-span-2 flex items-end">
+                <label class="flex items-center gap-2 text-sm text-ink-700">
+                    <input class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_form.HasDebt" />
+                    <span>Есть долг</span>
+                </label>
+            </div>
+            <div class="md:col-span-5 flex items-end gap-2">
+                @if (_editClientId is null)
+                {
+                    <button type="button" class="tw-btn-primary w-full" @onclick="CreateClientAsync" disabled="@_loading">Создать</button>
+                }
+                else
+                {
+                    <button type="button" class="tw-btn-primary w-full" @onclick="UpdateClientAsync" disabled="@_loading">Сохранить</button>
+                    <button type="button" class="tw-btn-outline" @onclick="CancelEdit">Отмена</button>
+                }
+            </div>
+        </div>
+
+        <div class="mt-4 grid gap-3 md:grid-cols-2">
+            <div class="rounded-lg border border-ink-200 bg-white p-3">
+                <div class="mb-2 flex items-center justify-between">
+                    <div class="text-sm font-semibold text-ink-900">Телефоны</div>
+                    <button type="button" class="tw-btn-outline" @onclick="AddPhone">Добавить</button>
+                </div>
+                @for (var i = 0; i < _form.Phones.Count; i++)
+                {
+                    var row = _form.Phones[i];
+                    <div class="mb-2 grid gap-2 md:grid-cols-12">
+                        <div class="md:col-span-5">
+                            <input class="tw-input" @bind="row.Phone" placeholder="+77010000000" />
+                        </div>
+                        <div class="md:col-span-4">
+                            <select class="tw-select" @bind="row.Type">
+                                <option value="PRIMARY">PRIMARY</option>
+                                <option value="MOBILE">MOBILE</option>
+                                <option value="HOME">HOME</option>
+                                <option value="WORK">WORK</option>
+                                <option value="OTHER">OTHER</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2 flex items-center">
+                            <label class="flex items-center gap-2 text-xs text-ink-700">
+                                <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryPhone(i)" />
+                                <span>Основной</span>
+                            </label>
+                        </div>
+                        <div class="md:col-span-1">
+                            <button type="button" class="tw-btn-danger w-full" @onclick="() => RemovePhone(i)">x</button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="rounded-lg border border-ink-200 bg-white p-3">
+                <div class="mb-2 flex items-center justify-between">
+                    <div class="text-sm font-semibold text-ink-900">Адреса</div>
+                    <button type="button" class="tw-btn-outline" @onclick="AddAddress">Добавить</button>
+                </div>
+                @for (var i = 0; i < _form.Addresses.Count; i++)
+                {
+                    var row = _form.Addresses[i];
+                    <div class="mb-2 rounded-md border border-ink-200 p-2">
+                        <div class="mb-2 grid gap-2 md:grid-cols-12">
+                            <div class="md:col-span-3">
+                                <input class="tw-input" @bind="row.Label" placeholder="HOME" />
+                            </div>
+                            <div class="md:col-span-7">
+                                <input class="tw-input" @bind="row.AddressText" placeholder="г. Алматы, ул. Назарбаева, 10" />
+                            </div>
+                            <div class="md:col-span-2">
+                                <button type="button" class="tw-btn-danger w-full" @onclick="() => RemoveAddress(i)">x</button>
+                            </div>
+                        </div>
+                        <div class="grid gap-2 md:grid-cols-12">
+                            <div class="md:col-span-4">
+                                <input class="tw-input" type="number" step="any" @bind="row.Latitude" placeholder="Lat" />
+                            </div>
+                            <div class="md:col-span-4">
+                                <input class="tw-input" type="number" step="any" @bind="row.Longitude" placeholder="Lon" />
+                            </div>
+                            <div class="md:col-span-4 flex items-center">
+                                <label class="flex items-center gap-2 text-xs text-ink-700">
+                                    <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryAddress(i)" />
+                                    <span>Основной</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (_created is not null)
+        {
+            <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                <div><span class="font-medium">ClientId:</span> @_created.ClientId</div>
+                <div><span class="font-medium">InvitationToken:</span> <code>@_created.InvitationToken</code></div>
+                <div><span class="font-medium">Действует до:</span> @_created.InvitationExpiresAtUtc.ToLocalTime().ToString("g")</div>
+            </div>
+        }
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск клиента" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Биллинг</label>
+                    <select class="tw-select mt-1" @bind="_billing">
+                        <option value="all">Все статусы биллинга</option>
+                        <option value="ACTIVE">Активен</option>
+                        <option value="DEBT">Долг</option>
+                        <option value="PAUSED">Приостановлен</option>
+                    </select>
+                </div>
+                <div class="md:col-span-3 flex items-end">
+                    <label class="flex items-center gap-2 text-sm text-ink-700">
+                        <input id="debtOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_debtOnly" />
+                        <span>Только с долгом</span>
+                    </label>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="tw-table min-w-full">
+            <thead>
+                <tr>
+                    <th class="tw-th">Клиент</th>
+                    <th class="tw-th">Телефон</th>
+                    <th class="tw-th">Тариф</th>
+                    <th class="tw-th">Биллинг</th>
+                    <th class="tw-th">Последний платеж</th>
+                    <th class="tw-th">Долг</th>
+                    <th class="tw-th">Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var client in _clients)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td">@client.DisplayName</td>
+                        <td class="tw-td whitespace-nowrap">@client.ContactPhone</td>
+                        <td class="tw-td">@client.Tariff</td>
+                        <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
+                        <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
+                        <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "ДА" : "НЕТ")</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <button type="button" class="tw-btn-outline" @onclick="() => StartEditAsync(client.Id)">Редактировать</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _search;
+    private string _billing = "all";
+    private bool _debtOnly;
+    private string? _error;
+    private string? _success;
+
+    private CreateAdminClientRequestDto _create = new();
+    private EditClientForm _form = new();
+    private DateTime? _lastPaymentLocal;
+    private Guid? _editClientId;
+    private IReadOnlyCollection<BillingTariffItemDto> _tariffs = [];
+
+    private CreateAdminClientResponseDto? _created;
+    private IReadOnlyCollection<AdminClientItemDto> _clients = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.AdminRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        ResetForm();
+        _lastPaymentLocal = DateTime.Now;
+        await LoadTariffsAsync();
+        await ReloadAsync();
+    }
+
+    private async Task CreateClientAsync()
+    {
+        _error = null;
+        _success = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_create.Login))
+            {
+                _error = "Укажите логин клиента.";
+                return;
+            }
+
+            _create.FullName = _form.FullName;
+            _create.Email = _form.Email;
+            _create.Tariff = _form.Tariff;
+            _create.BillingStatus = _form.BillingStatus;
+            _create.HasDebt = _form.HasDebt;
+            _create.LastPaymentAtUtc = ToUtc(_lastPaymentLocal);
+            _create.Phones = _form.Phones
+                .Where(x => !string.IsNullOrWhiteSpace(x.Phone))
+                .Select(x => new AdminClientPhoneInputDto
+                {
+                    Phone = x.Phone.Trim(),
+                    Type = x.Type,
+                    IsPrimary = x.IsPrimary,
+                })
+                .ToArray();
+            _create.Addresses = _form.Addresses
+                .Where(x => !string.IsNullOrWhiteSpace(x.AddressText))
+                .Select(x => new AdminClientAddressInputDto
+                {
+                    Label = x.Label,
+                    AddressText = x.AddressText.Trim(),
+                    Latitude = x.Latitude,
+                    Longitude = x.Longitude,
+                    IsPrimary = x.IsPrimary,
+                })
+                .ToArray();
+
+            _created = await Store.CreateClientAsync(_create, CancellationToken.None);
+            _success = "Клиент создан. Приглашение сформировано.";
+            _create = new CreateAdminClientRequestDto();
+            ResetForm();
+            _lastPaymentLocal = DateTime.Now;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private async Task UpdateClientAsync()
+    {
+        if (_editClientId is null)
+        {
+            return;
+        }
+
+        _error = null;
+        _success = null;
+        try
+        {
+            var request = new UpdateAdminClientRequestDto
+            {
+                FullName = _form.FullName,
+                Email = _form.Email,
+                Tariff = _form.Tariff,
+                BillingStatus = _form.BillingStatus,
+                HasDebt = _form.HasDebt,
+                LastPaymentAtUtc = ToUtc(_lastPaymentLocal),
+                Phones = _form.Phones
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Phone))
+                    .Select(x => new AdminClientPhoneInputDto
+                    {
+                        Phone = x.Phone.Trim(),
+                        Type = x.Type,
+                        IsPrimary = x.IsPrimary,
+                    })
+                    .ToArray(),
+                Addresses = _form.Addresses
+                    .Where(x => !string.IsNullOrWhiteSpace(x.AddressText))
+                    .Select(x => new AdminClientAddressInputDto
+                    {
+                        Label = x.Label,
+                        AddressText = x.AddressText.Trim(),
+                        Latitude = x.Latitude,
+                        Longitude = x.Longitude,
+                        IsPrimary = x.IsPrimary,
+                    })
+                    .ToArray(),
+            };
+
+            await Store.UpdateClientAsync(_editClientId.Value, request, CancellationToken.None);
+            _success = "Клиент обновлен.";
+            CancelEdit();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private async Task StartEditAsync(Guid clientId)
+    {
+        _error = null;
+        _success = null;
+        try
+        {
+            var details = await Store.GetClientByIdAsync(clientId, CancellationToken.None);
+            _editClientId = details.Id;
+            _form = new EditClientForm
+            {
+                FullName = details.DisplayName,
+                Email = details.Email,
+                Tariff = details.Tariff,
+                BillingStatus = details.BillingStatus,
+                HasDebt = details.HasDebt,
+                Phones = details.Phones
+                    .Select(x => new PhoneFormRow
+                    {
+                        Phone = x.Phone,
+                        Type = x.Type,
+                        IsPrimary = x.IsPrimary,
+                    })
+                    .ToList(),
+                Addresses = details.Addresses
+                    .Select(x => new AddressFormRow
+                    {
+                        Label = x.Label,
+                        AddressText = x.AddressText,
+                        Latitude = x.Latitude,
+                        Longitude = x.Longitude,
+                        IsPrimary = x.IsPrimary,
+                    })
+                    .ToList(),
+            };
+
+            if (_form.Phones.Count == 0)
+            {
+                _form.Phones.Add(new PhoneFormRow { Type = "PRIMARY", IsPrimary = true });
+            }
+
+            if (_form.Addresses.Count == 0)
+            {
+                _form.Addresses.Add(new AddressFormRow { Label = "HOME", IsPrimary = true });
+            }
+
+            _lastPaymentLocal = details.LastPaymentAtUtc.ToLocalTime();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+    }
+
+    private void CancelEdit()
+    {
+        _editClientId = null;
+        ResetForm();
+        _lastPaymentLocal = DateTime.Now;
+    }
+
+    private async Task LoadTariffsAsync()
+    {
+        _tariffs = await Store.GetTariffsAsync(includeInactive: true, CancellationToken.None);
+        if (_tariffs.Count > 0 && string.IsNullOrWhiteSpace(_form.Tariff))
+        {
+            _form.Tariff = _tariffs.First().Code;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _clients = await Store.GetClientsAsync(_search, _billing, _debtOnly, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AddPhone()
+    {
+        _form.Phones.Add(new PhoneFormRow { Type = "OTHER", IsPrimary = _form.Phones.Count == 0 });
+    }
+
+    private void RemovePhone(int index)
+    {
+        if (index < 0 || index >= _form.Phones.Count)
+        {
+            return;
+        }
+
+        var removedPrimary = _form.Phones[index].IsPrimary;
+        _form.Phones.RemoveAt(index);
+        if (removedPrimary && _form.Phones.Count > 0)
+        {
+            _form.Phones[0].IsPrimary = true;
+        }
+    }
+
+    private void SetPrimaryPhone(int index)
+    {
+        for (var i = 0; i < _form.Phones.Count; i++)
+        {
+            _form.Phones[i].IsPrimary = i == index;
+        }
+    }
+
+    private void AddAddress()
+    {
+        _form.Addresses.Add(new AddressFormRow { Label = "OTHER", IsPrimary = _form.Addresses.Count == 0 });
+    }
+
+    private void RemoveAddress(int index)
+    {
+        if (index < 0 || index >= _form.Addresses.Count)
+        {
+            return;
+        }
+
+        var removedPrimary = _form.Addresses[index].IsPrimary;
+        _form.Addresses.RemoveAt(index);
+        if (removedPrimary && _form.Addresses.Count > 0)
+        {
+            _form.Addresses[0].IsPrimary = true;
+        }
+    }
+
+    private void SetPrimaryAddress(int index)
+    {
+        for (var i = 0; i < _form.Addresses.Count; i++)
+        {
+            _form.Addresses[i].IsPrimary = i == index;
+        }
+    }
+
+    private void ResetForm()
+    {
+        _form = new EditClientForm();
+        if (_tariffs.Count > 0)
+        {
+            _form.Tariff = _tariffs.First().Code;
+        }
+
+        _form.Phones.Add(new PhoneFormRow { Type = "PRIMARY", IsPrimary = true });
+        _form.Addresses.Add(new AddressFormRow { Label = "HOME", IsPrimary = true });
+    }
+
+    private static DateTime? ToUtc(DateTime? value) =>
+        value.HasValue
+            ? DateTime.SpecifyKind(value.Value, DateTimeKind.Local).ToUniversalTime()
+            : null;
+
+    private static string TranslateBilling(string status) =>
+        status switch
+        {
+            "ACTIVE" => "Активен",
+            "DEBT" => "Долг",
+            "PAUSED" => "Приостановлен",
+            _ => status,
+        };
+
+    private sealed class EditClientForm
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string Tariff { get; set; } = "STANDARD";
+        public string BillingStatus { get; set; } = "ACTIVE";
+        public bool HasDebt { get; set; }
+        public List<PhoneFormRow> Phones { get; set; } = [];
+        public List<AddressFormRow> Addresses { get; set; } = [];
+    }
+
+    private sealed class PhoneFormRow
+    {
+        public string Phone { get; set; } = string.Empty;
+        public string Type { get; set; } = "PRIMARY";
+        public bool IsPrimary { get; set; }
+    }
+
+    private sealed class AddressFormRow
+    {
+        public string Label { get; set; } = "HOME";
+        public string AddressText { get; set; } = string.Empty;
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+        public bool IsPrimary { get; set; }
+    }
+}

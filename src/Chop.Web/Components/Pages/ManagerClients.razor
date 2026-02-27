@@ -1,0 +1,130 @@
+﻿@page "/manager/clients"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Клиенты (менеджер)</PageTitle>
+
+<h1 class="mb-4">Сводка клиентов (менеджер)</h1>
+
+<div class="tw-alert-info mb-4">
+    Режим только чтения: менеджер видит клиентов и биллинг-сводку без возможности редактирования.
+</div>
+
+@if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger mb-4">@_error</div>
+}
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-6">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск клиента" />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-ink-700">Биллинг</label>
+                    <select class="tw-select mt-1" @bind="_billing">
+                        <option value="all">Все статусы биллинга</option>
+                        <option value="ACTIVE">Активен</option>
+                        <option value="DEBT">Долг</option>
+                        <option value="PAUSED">Приостановлен</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Клиент</th>
+                <th class="tw-th">Телефон</th>
+                <th class="tw-th">Тариф</th>
+                <th class="tw-th">Биллинг</th>
+                <th class="tw-th">Последний платеж</th>
+                <th class="tw-th">Долг</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var client in _clients)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td">@client.DisplayName</td>
+                    <td class="tw-td whitespace-nowrap">@client.ContactPhone</td>
+                    <td class="tw-td">@client.Tariff</td>
+                    <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
+                    <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
+                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "ДА" : "НЕТ")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _search;
+    private string _billing = "all";
+    private string? _error;
+    private IReadOnlyCollection<AdminClientItemDto> _clients = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.ManagerRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _clients = await Store.GetClientsAsync(_search, _billing, debtOnly: false, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string TranslateBilling(string status) =>
+        status switch
+        {
+            "ACTIVE" => "Активен",
+            "DEBT" => "Долг",
+            "PAUSED" => "Приостановлен",
+            _ => status,
+        };
+}

@@ -1,0 +1,78 @@
+@page "/weather"
+@attribute [StreamRendering]
+@inject Chop.Web.Auth.WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Погода</PageTitle>
+
+<h1 class="mb-4">Погода</h1>
+
+<p>Демонстрация отображения данных.</p>
+
+@if (forecasts == null)
+{
+    <p><em>Загрузка...</em></p>
+}
+else
+{
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Дата</th>
+                <th class="tw-th" aria-label="Температура в Цельсиях">Темп. (C)</th>
+                <th class="tw-th" aria-label="Температура в Фаренгейтах">Темп. (F)</th>
+                <th class="tw-th">Сводка</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var forecast in forecasts)
+            {
+                <tr class="odd:bg-white even:bg-ink-50">
+                    <td class="tw-td whitespace-nowrap">@forecast.Date.ToShortDateString()</td>
+                    <td class="tw-td whitespace-nowrap">@forecast.TemperatureC</td>
+                    <td class="tw-td whitespace-nowrap">@forecast.TemperatureF</td>
+                    <td class="tw-td">@forecast.Summary</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(Chop.Web.Auth.RoleConstants.SuperAdminOnlyRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        // Имитируем асинхронную загрузку для демонстрации потокового рендеринга.
+        await Task.Delay(500);
+
+        var startDate = DateOnly.FromDateTime(DateTime.Now);
+        var summaries = new[] { "Мороз", "Прохладно", "Свежо", "Умеренно", "Тепло", "Жарко", "Знойно", "Пекло", "Духота", "Экстремально жарко" };
+        forecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast
+        {
+            Date = startDate.AddDays(index),
+            TemperatureC = Random.Shared.Next(-20, 55),
+            Summary = summaries[Random.Shared.Next(summaries.Length)]
+        }).ToArray();
+    }
+
+    private sealed class WeatherForecast
+    {
+        public DateOnly Date { get; set; }
+        public int TemperatureC { get; set; }
+        public string? Summary { get; set; }
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+}

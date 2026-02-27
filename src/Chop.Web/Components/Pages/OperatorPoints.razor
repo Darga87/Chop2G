@@ -1,0 +1,440 @@
+@page "/operator/points"
+@using System.Globalization
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Точки оператора</PageTitle>
+
+<h1 class="mb-4">Точки оператора</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <div class="tw-alert-danger">@_error</div>
+}
+else
+{
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="mb-2 text-sm font-semibold text-ink-900">Добавить точку охраны</div>
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Код</label>
+                    <input class="tw-input mt-1" @bind="_newCode" placeholder="PT-001" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Метка</label>
+                    <input class="tw-input mt-1" @bind="_newLabel" placeholder="Пост центр" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Тип</label>
+                    <select class="tw-select mt-1" @bind="_newType">
+                        <option value="POST">Пост</option>
+                        <option value="SITE">Объект</option>
+                        <option value="HUB">Хаб</option>
+                    </select>
+                </div>
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-ink-700">Адрес</label>
+                    <input class="tw-input mt-1" @bind="_newAddress" placeholder="г. Алматы, ..." />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Lat</label>
+                    <input class="tw-input mt-1" @bind="_newLatitude" placeholder="43.2" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-ink-700">Lon</label>
+                    <input class="tw-input mt-1" @bind="_newLongitude" placeholder="76.9" />
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-primary w-full" @onclick="CreatePointAsync" disabled="@_busyMutation">Создать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_selectedPointId.HasValue)
+    {
+        <div class="tw-card mb-4">
+            <div class="tw-card-body">
+                <div class="mb-2 flex items-center justify-between gap-3">
+                    <div class="text-sm font-semibold text-ink-900">Редактирование точки</div>
+                    <button type="button" class="tw-btn-outline" @onclick="CancelEdit">Отменить</button>
+                </div>
+                <div class="grid gap-3 md:grid-cols-12">
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-ink-700">Код</label>
+                        <input class="tw-input mt-1" @bind="_editCode" />
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-sm font-medium text-ink-700">Метка</label>
+                        <input class="tw-input mt-1" @bind="_editLabel" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-ink-700">Тип</label>
+                        <select class="tw-select mt-1" @bind="_editType">
+                            <option value="POST">Пост</option>
+                            <option value="SITE">Объект</option>
+                            <option value="HUB">Хаб</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-5">
+                        <label class="block text-sm font-medium text-ink-700">Адрес</label>
+                        <input class="tw-input mt-1" @bind="_editAddress" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-ink-700">Lat</label>
+                        <input class="tw-input mt-1" @bind="_editLatitude" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-ink-700">Lon</label>
+                        <input class="tw-input mt-1" @bind="_editLongitude" />
+                    </div>
+                    <div class="md:col-span-3 flex items-end">
+                        <button type="button" class="tw-btn-primary w-full" @onclick="SavePointAsync" disabled="@_busyMutation">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
+                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по коду, метке, адресу" />
+                </div>
+                <div class="md:col-span-3">
+                    <label class="block text-sm font-medium text-ink-700">Тип</label>
+                    <select class="tw-select mt-1" @bind="_type">
+                        <option value="all">Все типы</option>
+                        <option value="POST">Пост</option>
+                        <option value="SITE">Объект</option>
+                        <option value="HUB">Хаб</option>
+                    </select>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <label class="inline-flex items-center gap-2 text-sm text-ink-700">
+                        <input type="checkbox" class="h-4 w-4" @bind="_includeInactive" />
+                        Показать неактивные
+                    </label>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Код</th>
+                    <th class="tw-th">Метка</th>
+                    <th class="tw-th">Тип</th>
+                    <th class="tw-th">Адрес</th>
+                    <th class="tw-th">Состояние</th>
+                    <th class="tw-th">Статус смены</th>
+                    <th class="tw-th">Активные силы</th>
+                    <th class="tw-th">Последнее событие</th>
+                    <th class="tw-th"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var point in _points)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td whitespace-nowrap font-medium">@point.Code</td>
+                        <td class="tw-td">@point.Label</td>
+                        <td class="tw-td whitespace-nowrap">@TranslatePointType(point.Type)</td>
+                        <td class="tw-td">@point.Address</td>
+                        <td class="tw-td whitespace-nowrap">@(point.IsActive ? "Активна" : "Отключена")</td>
+                        <td class="tw-td whitespace-nowrap">@TranslateShiftStatus(point.ShiftStatus)</td>
+                        <td class="tw-td whitespace-nowrap">@point.ActiveForces</td>
+                        <td class="tw-td whitespace-nowrap">@point.LastEventAtUtc.ToLocalTime().ToString("g")</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" class="tw-btn-outline" @onclick="() => StartEdit(point)">Редактировать</button>
+                                <button type="button" class="tw-btn-outline" @onclick="() => TogglePointAsync(point)">
+                                    @(point.IsActive ? "Деактивировать" : "Активировать")
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _busyMutation;
+    private string? _error;
+    private string? _search;
+    private string _type = "all";
+    private bool _includeInactive = true;
+    private IReadOnlyCollection<OperatorPointItemDto> _points = [];
+
+    private string? _newCode;
+    private string? _newLabel;
+    private string _newType = "POST";
+    private string? _newAddress;
+    private string? _newLatitude;
+    private string? _newLongitude;
+
+    private Guid? _selectedPointId;
+    private string? _editCode;
+    private string? _editLabel;
+    private string _editType = "POST";
+    private string? _editAddress;
+    private string? _editLatitude;
+    private string? _editLongitude;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.OpsRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _points = await Store.GetPointsAsync(_search, _type, _includeInactive, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreatePointAsync()
+    {
+        _error = null;
+        if (!TryParseCoordinates(_newLatitude, _newLongitude, out var lat, out var lon, out var error))
+        {
+            _error = error;
+            return;
+        }
+
+        _busyMutation = true;
+        try
+        {
+            await Store.CreatePointAsync(new CreateSecurityPointRequestDto
+            {
+                Code = _newCode ?? string.Empty,
+                Label = _newLabel ?? string.Empty,
+                Type = _newType,
+                Address = _newAddress ?? string.Empty,
+                Latitude = lat,
+                Longitude = lon,
+            }, CancellationToken.None);
+
+            _newCode = null;
+            _newLabel = null;
+            _newType = "POST";
+            _newAddress = null;
+            _newLatitude = null;
+            _newLongitude = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyMutation = false;
+        }
+    }
+
+    private void StartEdit(OperatorPointItemDto point)
+    {
+        _selectedPointId = point.Id;
+        _editCode = point.Code;
+        _editLabel = point.Label;
+        _editType = point.Type;
+        _editAddress = point.Address;
+        _editLatitude = null;
+        _editLongitude = null;
+        _error = null;
+    }
+
+    private void CancelEdit()
+    {
+        _selectedPointId = null;
+        _editCode = null;
+        _editLabel = null;
+        _editType = "POST";
+        _editAddress = null;
+        _editLatitude = null;
+        _editLongitude = null;
+    }
+
+    private async Task SavePointAsync()
+    {
+        if (!_selectedPointId.HasValue)
+        {
+            return;
+        }
+
+        _error = null;
+        if (!TryParseCoordinates(_editLatitude, _editLongitude, out var lat, out var lon, out var error))
+        {
+            _error = error;
+            return;
+        }
+
+        _busyMutation = true;
+        try
+        {
+            await Store.UpdatePointAsync(_selectedPointId.Value, new UpdateSecurityPointRequestDto
+            {
+                Code = _editCode ?? string.Empty,
+                Label = _editLabel ?? string.Empty,
+                Type = _editType,
+                Address = _editAddress ?? string.Empty,
+                Latitude = lat,
+                Longitude = lon,
+            }, CancellationToken.None);
+
+            CancelEdit();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyMutation = false;
+        }
+    }
+
+    private async Task TogglePointAsync(OperatorPointItemDto point)
+    {
+        _error = null;
+        _busyMutation = true;
+        try
+        {
+            await Store.TogglePointActiveAsync(point.Id, CancellationToken.None);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busyMutation = false;
+        }
+    }
+
+    private static bool TryParseCoordinates(
+        string? latitudeText,
+        string? longitudeText,
+        out double? latitude,
+        out double? longitude,
+        out string? error)
+    {
+        latitude = null;
+        longitude = null;
+        error = null;
+
+        var hasLat = !string.IsNullOrWhiteSpace(latitudeText);
+        var hasLon = !string.IsNullOrWhiteSpace(longitudeText);
+        if (hasLat ^ hasLon)
+        {
+            error = "Координаты нужно указывать парой: и Lat, и Lon.";
+            return false;
+        }
+
+        if (!hasLat)
+        {
+            return true;
+        }
+
+        if (!TryParseCoordinate(latitudeText!, out var lat))
+        {
+            error = "Некорректный формат Latitude.";
+            return false;
+        }
+
+        if (!TryParseCoordinate(longitudeText!, out var lon))
+        {
+            error = "Некорректный формат Longitude.";
+            return false;
+        }
+
+        latitude = lat;
+        longitude = lon;
+        return true;
+    }
+
+    private static bool TryParseCoordinate(string text, out double value)
+    {
+        var normalized = text.Trim().Replace(',', '.');
+        return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static string TranslatePointType(string type) =>
+        type switch
+        {
+            "POST" => "Пост",
+            "SITE" => "Объект",
+            "HUB" => "Хаб",
+            _ => type,
+        };
+
+    private static string TranslateShiftStatus(string status) =>
+        status switch
+        {
+            "ON_DUTY" => "На дежурстве",
+            "LOW_STAFFED" => "Нехватка людей",
+            _ => status,
+        };
+}

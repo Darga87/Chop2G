@@ -1,0 +1,269 @@
+@page "/hr/groups"
+@inject BackofficeApiClient Store
+@inject WebAuthSession Session
+@inject NavigationManager NavigationManager
+
+<PageTitle>Группы охраны (HR)</PageTitle>
+
+<h1 class="mb-4">Группы охраны (HR)</h1>
+
+@if (_loading)
+{
+    <div class="tw-alert-info">Загрузка...</div>
+}
+else
+{
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <div class="tw-alert-danger mb-4">@_error</div>
+    }
+
+    <div class="tw-card mb-4">
+        <div class="tw-card-body">
+            <div class="grid gap-3 md:grid-cols-12">
+                <div class="md:col-span-6">
+                    <label class="block text-sm font-medium text-ink-700">Новая группа</label>
+                    <input class="tw-input mt-1" @bind="_newGroupName" placeholder="Например: ГБР-1" />
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button class="tw-btn-primary w-full" @onclick="CreateGroupAsync" disabled="@_busy">Создать</button>
+                </div>
+                <div class="md:col-span-2 flex items-end">
+                    <button class="tw-btn-outline w-full" @onclick="ReloadAsync" disabled="@_busy">Обновить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <table class="tw-table">
+        <thead>
+            <tr>
+                <th class="tw-th">Группа</th>
+                <th class="tw-th">Состав</th>
+                <th class="tw-th">Добавить в группу</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var group in _groups)
+            {
+                <tr class="odd:bg-white even:bg-ink-50 align-top">
+                    <td class="tw-td">
+                        <div class="font-semibold">@group.Name</div>
+                        <div class="text-xs text-ink-600">Участников: @group.MembersCount</div>
+                    </td>
+                    <td class="tw-td">
+                        @if (group.Members.Count == 0)
+                        {
+                            <div class="text-sm text-ink-500">Пока пусто</div>
+                        }
+                        else
+                        {
+                            <div class="flex flex-wrap gap-2">
+                                @foreach (var member in group.Members)
+                                {
+                                    <span class="rounded-md border border-ink-300 bg-white px-2 py-1 text-xs">
+                                        @member.GuardFullName @if(member.IsCommander){<text>(командир)</text>}
+                                        <button class="ml-2 text-red-600" @onclick="() => RemoveMemberAsync(group.Id, member.GuardUserId)">x</button>
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </td>
+                    <td class="tw-td">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <select
+                                class="tw-select min-w-64"
+                                value="@GetSelectedGuard(group.Id)"
+                                @onchange="e => SetSelectedGuard(group.Id, e.Value?.ToString())">
+                                <option value="">Выберите охранника</option>
+                                @foreach (var guard in _guards)
+                                {
+                                    var guardUserId = guard.Id.ToString("D");
+                                    <option value="@guardUserId">@guard.FullName (@guardUserId)</option>
+                                }
+                            </select>
+                            <label class="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked="@GetCommanderFlag(group.Id)"
+                                    @onchange="e => SetCommanderFlag(group.Id, e.Value is bool b && b)" />
+                                Командир
+                            </label>
+                            <button class="tw-btn-outline" @onclick="() => AddMemberAsync(group.Id)" disabled="@_busy">Добавить</button>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private string? _newGroupName;
+    private IReadOnlyCollection<GuardGroupItemDto> _groups = [];
+    private IReadOnlyCollection<GuardItemDto> _guards = [];
+    private readonly Dictionary<Guid, string?> _selectedGuardByGroup = [];
+    private readonly Dictionary<Guid, bool> _commanderByGroup = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        if (!Session.IsInAnyRole(RoleConstants.HrRoles))
+        {
+            NavigationManager.NavigateTo("/forbidden", replace: true);
+            return;
+        }
+
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _groups = await Store.GetGuardGroupsAsync(CancellationToken.None);
+            _guards = await Store.GetGuardsAsync(null, "active", onShiftOnly: false, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string? GetSelectedGuard(Guid groupId)
+    {
+        _selectedGuardByGroup.TryGetValue(groupId, out var value);
+        return value;
+    }
+
+    private void SetSelectedGuard(Guid groupId, string? guardUserId)
+    {
+        _selectedGuardByGroup[groupId] = guardUserId;
+    }
+
+    private bool GetCommanderFlag(Guid groupId)
+    {
+        _commanderByGroup.TryGetValue(groupId, out var value);
+        return value;
+    }
+
+    private void SetCommanderFlag(Guid groupId, bool value)
+    {
+        _commanderByGroup[groupId] = value;
+    }
+
+    private async Task CreateGroupAsync()
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Store.CreateGuardGroupAsync(_newGroupName ?? string.Empty, CancellationToken.None);
+            _newGroupName = null;
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task AddMemberAsync(Guid groupId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        var selected = GetSelectedGuard(groupId);
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            _error = "Выберите охранника.";
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Store.AddGuardToGroupAsync(groupId, selected, GetCommanderFlag(groupId), CancellationToken.None);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RemoveMemberAsync(Guid groupId, string guardUserId)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Store.RemoveGuardFromGroupAsync(groupId, guardUserId, CancellationToken.None);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
+

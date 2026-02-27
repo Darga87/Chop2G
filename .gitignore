@@ -1,0 +1,64 @@
+# OS / Editor
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.DS_Store
+Thumbs.db
+
+# Git
+.git-credentials
+
+# Logs / temp
+*.log
+*.tmp
+.tmp*
+
+# Node / Tailwind
+node_modules/
+.npm/
+.pnpm-store/
+dist/
+
+# .NET build artifacts
+**/bin/
+**/obj/
+**/artifacts/
+TestResults/
+
+# EF / local db files
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets / environment
+.env
+.env.*
+!*.env.example
+appsettings.Local.json
+appsettings.Development.local.json
+
+# User secrets / local config
+secrets.json
+
+# MAUI / mobile generated
+**/Platforms/Android/.gradle/
+**/Platforms/Android/build/
+**/Platforms/iOS/build/
+**/Platforms/MacCatalyst/build/
+
+# Packages
+*.nupkg
+packages/
+
+# Coverage
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# Publish output
+publish/
+out/

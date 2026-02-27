@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chop UI-Kit Preview</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --surface-1: #111a2b;
+      --surface-2: #182338;
+      --text-primary: #e6edf7;
+      --text-secondary: #93a4bd;
+      --primary: #22d3ee;
+      --primary-strong: #0891b2;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #38bdf8;
+      --border: #22304a;
+      --radius-card: 14px;
+      --radius-control: 10px;
+      --shadow-card: 0 6px 20px rgba(0, 0, 0, 0.2);
+      --font: "Segoe UI", "Inter", system-ui, sans-serif;
+    }
+
+    .theme-a {
+      --bg: #0b1220;
+      --surface-1: #111a2b;
+      --surface-2: #182338;
+      --text-primary: #e6edf7;
+      --text-secondary: #93a4bd;
+      --primary: #22d3ee;
+      --primary-strong: #0891b2;
+    }
+
+    .theme-b {
+      --bg: #0f1115;
+      --surface-1: #171a21;
+      --surface-2: #1e2430;
+      --text-primary: #f3f5f7;
+      --text-secondary: #a2acba;
+      --primary: #84cc16;
+      --primary-strong: #65a30d;
+    }
+
+    .theme-c {
+      --bg: #0a1630;
+      --surface-1: #10213f;
+      --surface-2: #16305a;
+      --text-primary: #f8fafc;
+      --text-secondary: #a7b7d1;
+      --primary: #f59e0b;
+      --primary-strong: #d97706;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top right, #1e2f52 0%, var(--bg) 50%);
+      color: var(--text-primary);
+      font-family: var(--font);
+    }
+
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .toolbar {
+      display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+      margin-bottom: 16px;
+    }
+    .chip {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--text-primary);
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      background: var(--surface-1);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-card);
+      padding: 16px;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+    .title { margin: 0 0 8px; font-size: 24px; }
+    .muted { color: var(--text-secondary); margin: 0; }
+    .section-title { margin: 0 0 12px; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+
+    .swatches { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+    .swatch {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      font-size: 12px;
+    }
+    .swatch-color { height: 40px; }
+    .swatch-label { padding: 6px 8px; background: #0a1020; color: #d7deea; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn {
+      border-radius: var(--radius-control);
+      border: 1px solid transparent;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--primary); color: #04141b; }
+    .btn-secondary { background: var(--surface-2); color: var(--text-primary); border-color: var(--border); }
+    .btn-outline { background: transparent; color: var(--text-primary); border-color: var(--border); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-ghost { background: transparent; color: var(--text-secondary); }
+
+    .input, .select {
+      width: 100%;
+      border-radius: var(--radius-control);
+      border: 1px solid var(--border);
+      background: #0d1526;
+      color: var(--text-primary);
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+
+    .alerts { display: grid; gap: 8px; }
+    .alert {
+      border-radius: 10px;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      font-size: 14px;
+    }
+    .alert-info { background: rgba(56, 189, 248, .12); border-color: rgba(56, 189, 248, .3); }
+    .alert-success { background: rgba(34, 197, 94, .12); border-color: rgba(34, 197, 94, .3); }
+    .alert-warning { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .3); }
+    .alert-danger { background: rgba(239, 68, 68, .12); border-color: rgba(239, 68, 68, .35); }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      overflow: hidden;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .table th, .table td { padding: 10px; border-bottom: 1px solid var(--border); text-align: left; }
+    .table th { color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .b-new { background: rgba(56, 189, 248, .15); color: #8ddcff; }
+    .b-acked { background: rgba(245, 158, 11, .15); color: #ffd089; }
+    .b-critical { background: rgba(239, 68, 68, .2); color: #ffb1b1; }
+  </style>
+</head>
+<body class="theme-b">
+  <div class="wrap">
+    <div class="toolbar">
+      <strong>Theme:</strong>
+      <button class="chip" onclick="setTheme('theme-a')">Pack A</button>
+      <button class="chip" onclick="setTheme('theme-b')">Pack B</button>
+      <button class="chip" onclick="setTheme('theme-c')">Pack C</button>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <h1 class="title">Chop UI-Kit Preview</h1>
+      <p class="muted">Тестовая офлайн-страница для визуальной проверки токенов и базовых компонентов.</p>
+    </div>
+
+    <div class="grid grid-2">
+      <section class="card">
+        <h2 class="section-title">Цвета</h2>
+        <div class="swatches">
+          <div class="swatch"><div class="swatch-color" style="background:var(--primary)"></div><div class="swatch-label">primary</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--success)"></div><div class="swatch-label">success</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--warning)"></div><div class="swatch-label">warning</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--danger)"></div><div class="swatch-label">danger</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--info)"></div><div class="swatch-label">info</div></div>
+          <div class="swatch"><div class="swatch-color" style="background:var(--surface-2)"></div><div class="swatch-label">surface-2</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Кнопки</h2>
+        <div class="btn-row">
+          <button class="btn btn-primary">Primary</button>
+          <button class="btn btn-secondary">Secondary</button>
+          <button class="btn btn-outline">Outline</button>
+          <button class="btn btn-danger">Danger</button>
+          <button class="btn btn-ghost">Ghost</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Формы</h2>
+        <input class="input" placeholder="Поиск по инцидентам" />
+        <select class="select">
+          <option>Любой статус</option>
+          <option>NEW</option>
+          <option>ACKED</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn btn-primary">Применить</button>
+          <button class="btn btn-outline">Сбросить</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 class="section-title">Уведомления</h2>
+        <div class="alerts">
+          <div class="alert alert-info">INFO: новый инцидент получен.</div>
+          <div class="alert alert-success">SUCCESS: группа назначена.</div>
+          <div class="alert alert-warning">WARN: нет второй группы.</div>
+          <div class="alert alert-danger">CRITICAL: охранник оффлайн.</div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px;">
+      <h2 class="section-title">Таблица и статусы</h2>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Клиент</th>
+            <th>Статус</th>
+            <th>Алерт</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>#INC-1001</td>
+            <td>Иванов И.И.</td>
+            <td><span class="badge b-new">NEW</span></td>
+            <td>-</td>
+          </tr>
+          <tr>
+            <td>#INC-1002</td>
+            <td>Петров П.П.</td>
+            <td><span class="badge b-acked">ACKED</span></td>
+            <td><span class="badge b-critical">CRITICAL</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    function setTheme(themeName) {
+      document.body.classList.remove("theme-a", "theme-b", "theme-c");
+      document.body.classList.add(themeName);
+    }
+  </script>
+</body>
+</html>
