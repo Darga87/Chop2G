@@ -84,7 +84,7 @@ public sealed class IncidentsAuthTests : IClassFixture<TestWebApplicationFactory
     {
         await _factory.SeedClientProfileAsync(
             userId: TestUsers.ClientDetailsShape.UserId,
-            fullName: "Иванов Иван Иванович",
+            fullName: "Ivanov Ivan Ivanovich",
             phones:
             [
                 ("+79990001122", "PRIMARY", true),
@@ -92,8 +92,8 @@ public sealed class IncidentsAuthTests : IClassFixture<TestWebApplicationFactory
             ],
             addresses:
             [
-                ("Дом", "Москва, Тверская 1", 55.7558, 37.6176, true),
-                ("Офис", "Москва, Арбат 10", null, null, false),
+                ("HOME", "Moscow, Tverskaya 1", 55.7558, 37.6176, true),
+                ("OFFICE", "Moscow, Arbat 10", null, null, false),
             ]);
 
         var clientToken = await LoginAndGetAccessTokenAsync("client-details-shape", "client-details-shape-pass");
@@ -124,19 +124,19 @@ public sealed class IncidentsAuthTests : IClassFixture<TestWebApplicationFactory
 
         var payload = await detailsResponse.Content.ReadFromJsonAsync<IncidentDetailsDto>();
         Assert.NotNull(payload);
-        Assert.Equal("Иванов Иван Иванович", payload!.Client.FullName);
+        Assert.Equal("Ivanov Ivan Ivanovich", payload!.Client.FullName);
         Assert.True(payload.Client.Phones.Count >= 2);
+        Assert.All(payload.Client.Phones, p => Assert.Contains('*', p.Phone));
         Assert.True(payload.Addresses.Count >= 2);
         Assert.NotEmpty(payload.History);
         Assert.False(string.IsNullOrWhiteSpace(payload.Status));
         Assert.True(payload.CreatedAt <= payload.LastUpdatedAt);
         Assert.Contains(payload.Client.Phones, p => p.IsPrimary && p.Type == "PRIMARY");
-        Assert.Contains(payload.Addresses, a => a.IsPrimary && a.Label == "Дом" && a.Location is not null);
-        Assert.Contains(payload.Addresses, a => !a.IsPrimary && a.Label == "Офис" && a.Location is null);
+        Assert.Contains(payload.Addresses, a => a.IsPrimary && a.Label == "HOME" && a.Location is not null);
+        Assert.Contains(payload.Addresses, a => !a.IsPrimary && a.Label == "OFFICE" && a.Location is null);
         Assert.Contains(payload.History, h => h.ToStatus == "NEW");
         Assert.Contains(payload.History, h => h.ToStatus == "ACKED");
     }
-
     [Fact]
     public async Task GetIncidentDetails_AccessAllowedForOperatorAndAdmin()
     {
@@ -369,6 +369,53 @@ public sealed class IncidentsAuthTests : IClassFixture<TestWebApplicationFactory
         Assert.Equal(HttpStatusCode.BadRequest, dispatchResponse.StatusCode);
     }
 
+
+    [Fact]
+    public async Task GetIncidentDetails_PiiMasking_DependsOnRole()
+    {
+        await _factory.SeedClientProfileAsync(
+            userId: TestUsers.ClientDetailsShape.UserId,
+            fullName: "Тестовый Клиент",
+            phones:
+            [
+                ("+79990001122", "PRIMARY", true),
+            ],
+            addresses:
+            [
+                ("Дом", "Тестовый адрес", 55.75, 37.61, true),
+            ]);
+
+        var clientToken = await LoginAndGetAccessTokenAsync("client-details-shape", "client-details-shape-pass");
+        var operatorToken = await LoginAndGetAccessTokenAsync("operator", "operator-pass");
+        var adminToken = await LoginAndGetAccessTokenAsync("admin", "admin-pass");
+
+        using var createMessage = new HttpRequestMessage(HttpMethod.Post, "/api/incidents")
+        {
+            Content = JsonContent.Create(new CreateIncidentDto { AddressText = "pii-role-test" }),
+        };
+        createMessage.Headers.Authorization = new AuthenticationHeaderValue("Bearer", clientToken);
+        var createResponse = await _client.SendAsync(createMessage);
+        createResponse.EnsureSuccessStatusCode();
+        var created = await createResponse.Content.ReadFromJsonAsync<CreateIncidentResponseDto>();
+        Assert.NotNull(created);
+
+        using var operatorReq = new HttpRequestMessage(HttpMethod.Get, $"/api/operator/incidents/{created!.IncidentId}");
+        operatorReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", operatorToken);
+        var operatorRes = await _client.SendAsync(operatorReq);
+        operatorRes.EnsureSuccessStatusCode();
+        var operatorDetails = await operatorRes.Content.ReadFromJsonAsync<IncidentDetailsDto>();
+        Assert.NotNull(operatorDetails);
+        Assert.NotEmpty(operatorDetails!.Client.Phones);
+        Assert.Contains('*', operatorDetails.Client.Phones.First().Phone);
+
+        using var adminReq = new HttpRequestMessage(HttpMethod.Get, $"/api/operator/incidents/{created.IncidentId}");
+        adminReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var adminRes = await _client.SendAsync(adminReq);
+        adminRes.EnsureSuccessStatusCode();
+        var adminDetails = await adminRes.Content.ReadFromJsonAsync<IncidentDetailsDto>();
+        Assert.NotNull(adminDetails);
+        Assert.Equal("+79990001122", adminDetails!.Client.Phones.First().Phone);
+    }
     private async Task<string> LoginAndGetAccessTokenAsync(string login, string password)
     {
         var response = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequestDto

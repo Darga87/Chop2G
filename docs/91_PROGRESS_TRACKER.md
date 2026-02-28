@@ -6,7 +6,7 @@
 - Фиксируем только статус реализации и ближайшие шаги.
 - Без логов прогонов тестов и технического шума.
 - Новые идеи и неформализованные задачи добавляем в отдельный backlog-блок.
-- Последнее обновление: 2026-02-27 (Task-008: добавлен CI шаг сборки Tailwind CSS + выполнен аудит bootstrap classnames)
+- Последнее обновление: 2026-02-28 (завершен UTF-8 sweep по Web/docs, подтверждена сборка и полный прогон API тестов)
 - Технический журнал проверок: `docs/92_TEST_LOG.md`
 
 ## Легенда
@@ -56,7 +56,7 @@
 - [x] Реализована идемпотентность и дедупликация SOS (`Idempotency-Key` + dedup window)
 - [x] Добавлены hardening-механизмы дедупликации (request-hash, TTL cleanup, race protection)
 ### Осталось
-- [ ] Политика маскирования PII (телефоны/контакты) в operator views
+- [x] Политика маскирования PII (телефоны/контакты) в operator views: `OPERATOR` получает маску контактов, `ADMIN/SUPERADMIN` — полный вид
 
 ## Task-003A/Security Critical: Auth hardening
 ### Сделано
@@ -93,6 +93,12 @@
 - [x] Исправлен logout-on-refresh в Web: сессия сохраняется в cookie при login, восстанавливается в `WebAuthSession` на новом запросе, очищается при logout
 - [x] Backoffice Web auth hardening: при `401` клиент делает `POST /api/auth/refresh`, повторяет запрос и обновляет cookie/session (без ручного relogin)
 - [x] HR Guards page защищена от circuit-crash: ошибки API показываются banner-ом
+- [x] Восстановлен русский UTF-8 в `OperatorIncidentDetails.razor` (все подписи, статусы, сообщения)
+- [x] Восстановлена читаемость документации без крокозябр: `docs/04_SECURITY.md`, `docs/90_DECISIONS.md`
+- [x] Восстановлен русский UTF-8 в `ManagerClients.razor` (заголовки, фильтры, таблица, billing-статусы)
+- [x] Исправлена секция SignalR в `docs/03_API.md` (группы и события MVP без mojibake)
+- [x] Восстановлен UTF-8 в `tests/Chop.Api.Tests/BackofficeApiTests.cs` и `tests/Chop.Api.Tests/IncidentsAuthTests.cs` (русские данные и 1C ключи без искажений)
+- [x] Выполнен дополнительный UTF-8 sweep по `docs` и `src/Chop.Web/Components` — явных mojibake-строк не осталось
 
 ## Task-007: Data platform roadmap
 ### Планирование
@@ -222,7 +228,8 @@
 - [x] Contract mismatch в разделе payments imports закрыт: реализован `GET /api/admin/payments/imports/{importId}`
 ### Осталось
 - [x] Закрыть non-web часть общего контракта: `GET/PUT /api/clients/me` (CLIENT profile self-service)
-- [x] Уточнены роли в `docs/03_API.md` для `POST /hr/shifts/start|end` (приведены к фактической реализации `HR/ADMIN/SUPERADMIN`)
+- [x] Уточнены роли в `docs/03_API.md` для `POST /hr/shifts/start|end` (приведены к фактической реализации `HR/OPERATOR/ADMIN/SUPERADMIN`)
+- [x] Управление сменами перенесено в операторский контур (`/operator/shifts` в навигации), доступ по API открыт для `OPERATOR` без потери доступа `HR`
 - [x] Перевести Wave 2/3 Web страницы с in-memory store на реальные backend endpoints
 
 ## Task-013: Security Hardening (новый приоритет)
@@ -314,8 +321,11 @@
 - [x] `GET /api/operator/points` поддерживает `includeInactive=true/false`
 - [x] Добавлена серверная валидация координат точек (`lat/lon` пара + диапазоны)
 - [x] `/operator/points`: добавлен UI редактирования и активации/деактивации точки
+- [x] `POST/PUT /api/operator/points*`: серверная нормализация адреса точки (trim + пробелы + запятые)
+- [x] `POST/PUT /api/operator/points*`: опциональный geocoding для автозаполнения `lat/lon` при пустых координатах (feature-flag)
+- [x] `/operator/points` UX: добавлены подсказки по автогеокодингу, отображение `Geo` (lat/lon) в таблице и явный результат после create/update (нормализация адреса/автозаполнение координат)
 ### Осталось
-- [ ] Geocoding/normalization адреса (пока сохраняем как ввёл оператор)
+- [x] Geocoding/normalization адреса (MVP: always normalize + optional geocoding by config)
 
 ## Task-023: Admin Clients Management (create/edit)
 ### Сделано
@@ -380,6 +390,7 @@
 - [x] HR UI: редактирование профиля охранника (`ФИО/позывной/телефон/email`) через `PUT /api/hr/guards/{id}`
 - [x] HR UI: быстрые действия по сменам на `/hr/guards` (старт/завершение смены, выбор группы/поста при старте)
 - [x] UX cleanup: actions по сменам удалены из `/hr/guards`, управление сменами оставлено только во вкладке `/hr/shifts`
+- [x] UX cleanup `/hr/guards`: убраны постоянные вторые строки в таблице (показываются только при редактировании), информация о старте смены перенесена в колонку "Смена"
 - [x] Admin UI: создание/редактирование клиентов (базовый CRUD: профиль, контакты, HOME-адрес, billing-поля)
 - [x] Admin UI: расширенный CRUD клиентов (мульти-телефоны и мульти-адреса в форме + загрузка деталей клиента `GET /api/admin/clients/{id}`)
 - [x] SuperAdmin UI: hardening управления учетками/ролями (`/superadmin/users`) — локализация статусов, блокировка self-deactivate, защита от снятия последней/критичной роли, добавление только отсутствующих ролей

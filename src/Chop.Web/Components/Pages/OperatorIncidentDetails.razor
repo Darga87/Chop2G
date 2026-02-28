@@ -1,4 +1,4 @@
-@page "/operator/incidents/{Id:guid}"
+﻿@page "/operator/incidents/{Id:guid}"
 @using Chop.Shared.Contracts.Incidents
 @inject Chop.Web.Incidents.IncidentsApiClient ApiClient
 @inject Chop.Web.Incidents.IncidentRealtimeClient RealtimeClient
@@ -6,9 +6,9 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
-<PageTitle>������ ���������</PageTitle>
+<PageTitle>Карточка инцидента</PageTitle>
 
-<h1 class="mb-4">�������� @Id</h1>
+<h1 class="mb-4">Инцидент @Id</h1>
 
 @if (_loading)
 {
@@ -20,7 +20,7 @@ else if (!string.IsNullOrWhiteSpace(_error))
 }
 else if (_item is null)
 {
-    <div class="tw-alert-warning">�������� �� ������.</div>
+    <div class="tw-alert-warning">Инцидент не найден.</div>
 }
 else
 {
@@ -30,15 +30,15 @@ else
                 <div class="tw-card-body">
                     <div class="grid gap-2 sm:grid-cols-3">
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">������</div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Статус</div>
                             <div class="text-sm font-medium text-ink-900">@TranslateStatus(_item.Status)</div>
                         </div>
                         <div>
-                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">������</div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Создан</div>
                             <div class="text-sm text-ink-900">@_item.CreatedAt.ToLocalTime().ToString("g")</div>
                         </div>
                         <div class="sm:col-span-3">
-                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">�����</div>
+                            <div class="text-xs font-semibold uppercase tracking-wide text-ink-500">Адрес</div>
                             <div class="text-sm text-ink-900">@_item.AddressSnapshot</div>
                         </div>
                     </div>
@@ -47,18 +47,18 @@ else
 
             <div class="tw-card">
                 <div class="tw-card-body">
-                    <h2 class="mb-2 text-lg font-semibold tracking-tight">������</h2>
-                    <div class="text-sm"><span class="text-ink-500">���:</span> <span class="font-medium">@_item.Client.FullName</span></div>
-                    <div class="text-sm"><span class="text-ink-500">��������:</span> @string.Join(", ", _item.Client.Phones.Select(x => x.Phone))</div>
+                    <h2 class="mb-2 text-lg font-semibold tracking-tight">Клиент</h2>
+                    <div class="text-sm"><span class="text-ink-500">ФИО:</span> <span class="font-medium">@_item.Client.FullName</span></div>
+                    <div class="text-sm"><span class="text-ink-500">Телефоны:</span> @string.Join(", ", _item.Client.Phones.Select(x => x.Phone))</div>
                 </div>
             </div>
 
             <div class="tw-card">
                 <div class="tw-card-body">
-                    <h2 class="mb-3 text-lg font-semibold tracking-tight">����� �������</h2>
+                    <h2 class="mb-3 text-lg font-semibold tracking-tight">Смена статуса</h2>
                     <div class="grid gap-3 md:grid-cols-12">
                         <div class="md:col-span-3">
-                            <label class="block text-sm font-medium text-ink-700">����� ������</label>
+                            <label class="block text-sm font-medium text-ink-700">Новый статус</label>
                             <select class="tw-select mt-1" @bind="_changeStatus.ToStatus">
                                 @foreach (var option in _statusOptions)
                                 {
@@ -67,11 +67,11 @@ else
                             </select>
                         </div>
                         <div class="md:col-span-7">
-                            <label class="block text-sm font-medium text-ink-700">����������� (�����������)</label>
-                            <input class="tw-input mt-1" @bind="_changeStatus.Comment" placeholder="������� / �����������" />
+                            <label class="block text-sm font-medium text-ink-700">Комментарий (обязателен)</label>
+                            <input class="tw-input mt-1" @bind="_changeStatus.Comment" placeholder="Причина / пояснение" />
                         </div>
                         <div class="md:col-span-2 flex items-end">
-                            <button class="tw-btn-warning w-full" @onclick="SubmitStatusChangeAsync" disabled="@_saving">���������</button>
+                            <button class="tw-btn-warning w-full" @onclick="SubmitStatusChangeAsync" disabled="@_saving">Сохранить</button>
                         </div>
                     </div>
                 </div>
@@ -79,15 +79,15 @@ else
 
             <div class="tw-card">
                 <div class="tw-card-body">
-                    <h2 class="mb-3 text-lg font-semibold tracking-tight">�������</h2>
+                    <h2 class="mb-3 text-lg font-semibold tracking-tight">История</h2>
                     <table class="tw-table">
                         <thead>
                             <tr>
-                                <th class="tw-th">�����</th>
-                                <th class="tw-th">��</th>
-                                <th class="tw-th">�</th>
-                                <th class="tw-th">���</th>
-                                <th class="tw-th">�����������</th>
+                                <th class="tw-th">Время</th>
+                                <th class="tw-th">Был</th>
+                                <th class="tw-th">Стал</th>
+                                <th class="tw-th">Кто</th>
+                                <th class="tw-th">Комментарий</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -110,7 +110,7 @@ else
         <div class="space-y-4">
             <div class="tw-card">
                 <div class="tw-card-body">
-                    <h2 class="mb-2 text-lg font-semibold tracking-tight">������</h2>
+                    <h2 class="mb-2 text-lg font-semibold tracking-tight">Адреса</h2>
                     <div class="space-y-2 text-sm">
                         @foreach (var a in _item.Addresses)
                         {
@@ -119,7 +119,7 @@ else
                                 <div class="text-ink-600">@a.Address</div>
                                 @if (a.Location is not null)
                                 {
-                                    <div class="mt-1 text-xs text-ink-500">���: @a.Location.Lat, @a.Location.Lon</div>
+                                    <div class="mt-1 text-xs text-ink-500">Гео: @a.Location.Lat, @a.Location.Lon</div>
                                 }
                             </div>
                         }
@@ -198,7 +198,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(_changeStatus.Comment))
         {
-            _error = "����������� ����������.";
+            _error = "Комментарий обязателен для смены статуса.";
             return;
         }
 
@@ -233,20 +233,16 @@ else
         status switch
         {
             null => "-",
-            "NEW" => "�����",
-            "ACKED" => "������ ����������",
-            "DISPATCHED" => "��������� ������",
-            "ACCEPTED" => "������ ����������",
-            "EN_ROUTE" => "� ����",
-            "ON_SCENE" => "�� �����",
-            "RESOLVED" => "��������",
-            "CANCELED" => "�������",
-            "FALSE_ALARM" => "������ �����",
-            "FAILED" => "������ ���������",
+            "NEW" => "Новый",
+            "ACKED" => "Принят оператором",
+            "DISPATCHED" => "Назначены группы",
+            "ACCEPTED" => "Принят охранником",
+            "EN_ROUTE" => "В пути",
+            "ON_SCENE" => "На месте",
+            "RESOLVED" => "Завершен",
+            "CANCELED" => "Отменен",
+            "FALSE_ALARM" => "Ложный вызов",
+            "FAILED" => "Сбой обработки",
             _ => status,
         };
 }
-
-
-
-

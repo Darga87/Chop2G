@@ -111,7 +111,13 @@ else
                         </td>
                         <td class="tw-td whitespace-nowrap">@guard.Phone</td>
                         <td class="tw-td whitespace-nowrap">@(guard.IsActive ? "АКТИВЕН" : "НЕАКТИВЕН")</td>
-                        <td class="tw-td whitespace-nowrap">@(guard.OnShift ? "НА СМЕНЕ" : "ВНЕ СМЕНЫ")</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <div>@(guard.OnShift ? "НА СМЕНЕ" : "ВНЕ СМЕНЫ")</div>
+                            @if (guard.ShiftStartedAtUtc.HasValue)
+                            {
+                                <div class="mt-1 text-xs text-ink-600">с @guard.ShiftStartedAtUtc.Value.ToLocalTime().ToString("g")</div>
+                            }
+                        </td>
                         <td class="tw-td">@(!string.IsNullOrWhiteSpace(guard.GroupName) ? guard.GroupName : "-")</td>
                         <td class="tw-td">@(!string.IsNullOrWhiteSpace(guard.AssignedPost) ? guard.AssignedPost : "-")</td>
                         <td class="tw-td">
@@ -127,10 +133,10 @@ else
                             </div>
                         </td>
                     </tr>
-                    <tr class="bg-ink-50/70">
-                        <td class="tw-td" colspan="8">
-                            @if (_editingGuardId == guard.Id)
-                            {
+                    @if (_editingGuardId == guard.Id)
+                    {
+                        <tr class="bg-ink-50/70">
+                            <td class="tw-td" colspan="8">
                                 <div class="grid gap-2 md:grid-cols-12">
                                     <div class="md:col-span-3">
                                         <label class="block text-xs font-medium text-ink-700">ФИО</label>
@@ -153,22 +159,14 @@ else
                                         <button type="button" class="tw-btn-outline w-full" @onclick="CancelEdit" disabled="@_busy">Отмена</button>
                                     </div>
                                 </div>
-                            }
-
-                            <div class="mt-2 text-sm text-ink-700">
-                                @(guard.OnShift ? "На смене" : "Вне смены")
-                                @if (guard.ShiftStartedAtUtc.HasValue)
-                                {
-                                    <span> с @guard.ShiftStartedAtUtc.Value.ToLocalTime().ToString("g")</span>
-                                }
-                                <span class="ml-2 text-ink-500">(управление сменами во вкладке "Смены")</span>
-                            </div>
-                        </td>
-                    </tr>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
+    <div class="mt-2 text-xs text-ink-500">Управление сменами выполняется во вкладке "Смены".</div>
 }
 
 @code {

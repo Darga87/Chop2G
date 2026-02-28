@@ -78,6 +78,11 @@ public sealed class IncidentsController : ControllerBase
     public async Task<ActionResult<IncidentDetailsDto>> GetIncidentById(Guid id, CancellationToken cancellationToken)
     {
         var item = await _incidentService.GetDetailsAsync(id, cancellationToken);
+        if (item is not null)
+        {
+            item = ApplyIncidentDetailsPiiPolicy(item, User.GetHighestRole());
+        }
+
         return item is null ? NotFound() : Ok(item);
     }
 
@@ -327,4 +332,55 @@ public sealed class IncidentsController : ControllerBase
             ClientSummary = details.Client.FullName,
             LastUpdatedAt = details.LastUpdatedAt,
         };
+
+    private static IncidentDetailsDto ApplyIncidentDetailsPiiPolicy(IncidentDetailsDto details, string? actorRole)
+    {
+        if (!string.Equals(actorRole, "OPERATOR", StringComparison.OrdinalIgnoreCase))
+        {
+            return details;
+        }
+
+        details.Client = new ClientSummaryDto
+        {
+            FullName = details.Client.FullName,
+            Phones = details.Client.Phones
+                .Select(x => new ClientPhoneDto
+                {
+                    Phone = MaskPhone(x.Phone),
+                    Type = x.Type,
+                    IsPrimary = x.IsPrimary,
+                })
+                .ToArray(),
+        };
+
+        return details;
+    }
+
+    private static string MaskPhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return string.Empty;
+        }
+
+        var digits = phone.Count(char.IsDigit);
+        if (digits <= 2)
+        {
+            return new string('*', phone.Length);
+        }
+
+        var digitsToMask = digits - 2;
+        var maskedDigits = 0;
+        var chars = phone.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            if (char.IsDigit(chars[i]) && maskedDigits < digitsToMask)
+            {
+                chars[i] = '*';
+                maskedDigits++;
+            }
+        }
+
+        return new string(chars);
+    }
 }

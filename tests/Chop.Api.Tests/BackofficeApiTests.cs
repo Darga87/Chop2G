@@ -524,7 +524,7 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
             createTariffRequest.Content = JsonContent.Create(new UpsertBillingTariffRequestDto
             {
                 Code = code,
-                Name = "Используемый тариф",
+                Name = "РСЃРїРѕР»СЊР·СѓРµРјС‹Р№ С‚Р°СЂРёС„",
                 MonthlyFee = 2500m,
                 Currency = "KZT",
                 IsActive = true,
@@ -553,7 +553,7 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
             deactivateRequest.Content = JsonContent.Create(new UpsertBillingTariffRequestDto
             {
                 Code = code,
-                Name = "Используемый тариф",
+                Name = "РСЃРїРѕР»СЊР·СѓРµРјС‹Р№ С‚Р°СЂРёС„",
                 MonthlyFee = 2500m,
                 Currency = "KZT",
                 IsActive = false,
@@ -1083,6 +1083,10 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
         var created = await createResponse.Content.ReadFromJsonAsync<OperatorPointItemDto>();
         Assert.NotNull(created);
         Assert.True(created!.IsActive);
+        Assert.NotNull(created.Latitude);
+        Assert.InRange(Math.Abs(created.Latitude!.Value - 43.2389), 0, 0.0001);
+        Assert.NotNull(created.Longitude);
+        Assert.InRange(Math.Abs(created.Longitude!.Value - 76.8897), 0, 0.0001);
 
         using var updateRequest = CreateAuthed(HttpMethod.Put, $"/api/operator/points/{created.Id:D}", token);
         updateRequest.Content = JsonContent.Create(new UpdateSecurityPointRequestDto
@@ -1100,6 +1104,10 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
         Assert.NotNull(updated);
         Assert.Equal("Точка после обновления", updated!.Label);
         Assert.Equal("SITE", updated.Type);
+        Assert.NotNull(updated.Latitude);
+        Assert.InRange(Math.Abs(updated.Latitude!.Value - 43.2390), 0, 0.0001);
+        Assert.NotNull(updated.Longitude);
+        Assert.InRange(Math.Abs(updated.Longitude!.Value - 76.8898), 0, 0.0001);
 
         using var toggleRequest = CreateAuthed(HttpMethod.Post, $"/api/operator/points/{created.Id:D}/toggle-active", token);
         toggleRequest.Content = JsonContent.Create(new { });

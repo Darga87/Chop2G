@@ -151,6 +151,8 @@ public sealed class OperatorPointItemDto
     public string Label { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
     public bool IsActive { get; set; }
     public string ShiftStatus { get; set; } = string.Empty;
     public int ActiveForces { get; set; }

@@ -1,4 +1,4 @@
-using Chop.Domain.Incidents;
+﻿using Chop.Domain.Incidents;
 using Chop.Domain.Auth;
 using Chop.Domain.Clients;
 using Chop.Domain.Guards;
@@ -22,6 +22,7 @@ public sealed class BackofficeController : ControllerBase
     private readonly BackofficePaymentsStore _paymentsStore;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IAuditLogService _auditLogService;
+    private readonly ISecurityPointAddressNormalizer _securityPointAddressNormalizer;
     private static readonly HashSet<string> AllowedBackofficeRoles = new(StringComparer.OrdinalIgnoreCase)
     {
         "HR",
@@ -37,17 +38,19 @@ public sealed class BackofficeController : ControllerBase
         IConfiguration configuration,
         BackofficePaymentsStore paymentsStore,
         IPasswordHasher passwordHasher,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ISecurityPointAddressNormalizer securityPointAddressNormalizer)
     {
         _dbContext = dbContext;
         _configuration = configuration;
         _paymentsStore = paymentsStore;
         _passwordHasher = passwordHasher;
         _auditLogService = auditLogService;
+        _securityPointAddressNormalizer = securityPointAddressNormalizer;
     }
 
     [HttpGet("hr/guards")]
-    [Authorize(Roles = "HR,ADMIN,SUPERADMIN")]
+    [Authorize(Roles = "HR,OPERATOR,ADMIN,SUPERADMIN")]
     public async Task<ActionResult<IReadOnlyCollection<GuardItemDto>>> GetGuards(
         [FromQuery] string? search,
         [FromQuery] string? status,
@@ -342,7 +345,7 @@ public sealed class BackofficeController : ControllerBase
     }
 
     [HttpGet("hr/groups")]
-    [Authorize(Roles = "HR,ADMIN,SUPERADMIN")]
+    [Authorize(Roles = "HR,OPERATOR,ADMIN,SUPERADMIN")]
     public async Task<ActionResult<IReadOnlyCollection<GuardGroupItemDto>>> GetGuardGroups(CancellationToken cancellationToken)
     {
         var groups = await _dbContext.GuardGroups
@@ -526,7 +529,7 @@ public sealed class BackofficeController : ControllerBase
     }
 
     [HttpPost("hr/shifts/start")]
-    [Authorize(Roles = "HR,ADMIN,SUPERADMIN")]
+    [Authorize(Roles = "HR,OPERATOR,ADMIN,SUPERADMIN")]
     public async Task<ActionResult<GuardShiftItemDto>> StartShift([FromBody] StartGuardShiftRequestDto request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.GuardUserId))
@@ -611,7 +614,7 @@ public sealed class BackofficeController : ControllerBase
     }
 
     [HttpPost("hr/shifts/end")]
-    [Authorize(Roles = "HR,ADMIN,SUPERADMIN")]
+    [Authorize(Roles = "HR,OPERATOR,ADMIN,SUPERADMIN")]
     public async Task<IActionResult> EndShift([FromBody] EndGuardShiftRequestDto request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.GuardUserId))
@@ -1145,6 +1148,8 @@ public sealed class BackofficeController : ControllerBase
             Label = point.Label,
             Type = point.Type,
             Address = point.Address,
+            Latitude = point.Latitude,
+            Longitude = point.Longitude,
             IsActive = point.IsActive,
             ShiftStatus = activeForcesMap.TryGetValue(point.Id, out var activeForces) && activeForces > 0
                 ? "ON_DUTY"
@@ -1201,6 +1206,12 @@ public sealed class BackofficeController : ControllerBase
             return Conflict("point code already exists.");
         }
 
+        var normalizedAddress = await _securityPointAddressNormalizer.NormalizeAsync(
+            request.Address,
+            request.Latitude,
+            request.Longitude,
+            cancellationToken);
+
         var now = DateTime.UtcNow;
         var point = new SecurityPoint
         {
@@ -1208,9 +1219,9 @@ public sealed class BackofficeController : ControllerBase
             Code = code,
             Label = request.Label.Trim(),
             Type = string.IsNullOrWhiteSpace(request.Type) ? "POST" : request.Type.Trim().ToUpperInvariant(),
-            Address = request.Address.Trim(),
-            Latitude = request.Latitude,
-            Longitude = request.Longitude,
+            Address = normalizedAddress.Address,
+            Latitude = normalizedAddress.Latitude,
+            Longitude = normalizedAddress.Longitude,
             IsActive = true,
             CreatedAtUtc = now,
         };
@@ -1225,6 +1236,8 @@ public sealed class BackofficeController : ControllerBase
             Label = point.Label,
             Type = point.Type,
             Address = point.Address,
+            Latitude = point.Latitude,
+            Longitude = point.Longitude,
             IsActive = point.IsActive,
             ShiftStatus = "LOW_STAFFED",
             ActiveForces = 0,
@@ -1273,12 +1286,18 @@ public sealed class BackofficeController : ControllerBase
             return Conflict("point code already exists.");
         }
 
+        var normalizedAddress = await _securityPointAddressNormalizer.NormalizeAsync(
+            request.Address,
+            request.Latitude,
+            request.Longitude,
+            cancellationToken);
+
         point.Code = code;
         point.Label = request.Label.Trim();
         point.Type = string.IsNullOrWhiteSpace(request.Type) ? "POST" : request.Type.Trim().ToUpperInvariant();
-        point.Address = request.Address.Trim();
-        point.Latitude = request.Latitude;
-        point.Longitude = request.Longitude;
+        point.Address = normalizedAddress.Address;
+        point.Latitude = normalizedAddress.Latitude;
+        point.Longitude = normalizedAddress.Longitude;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -1302,6 +1321,8 @@ public sealed class BackofficeController : ControllerBase
             Label = point.Label,
             Type = point.Type,
             Address = point.Address,
+            Latitude = point.Latitude,
+            Longitude = point.Longitude,
             IsActive = point.IsActive,
             ShiftStatus = activeForces > 0 ? "ON_DUTY" : "LOW_STAFFED",
             ActiveForces = activeForces,
@@ -2013,3 +2034,4 @@ public sealed class BackofficeController : ControllerBase
             UpdatedAtUtc = tariff.UpdatedAtUtc,
         };
 }
+

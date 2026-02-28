@@ -3,12 +3,12 @@
 @inject WebAuthSession Session
 @inject NavigationManager NavigationManager
 
-<PageTitle>пїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)</PageTitle>
+<PageTitle>Клиенты (менеджер)</PageTitle>
 
-<h1 class="mb-4">пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)</h1>
+<h1 class="mb-4">Сводка по клиентам (менеджер)</h1>
 
 <div class="tw-alert-info mb-4">
-    пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ-пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ.
+    Только чтение данных: менеджер видит клиентов и billing-сводку без доступа к операционным функциям.
 </div>
 
 @if (!string.IsNullOrWhiteSpace(_error))
@@ -21,18 +21,19 @@
     <LoadingMessage />
 }
 else
-{    <FilterToolbar OnRefresh="ReloadAsync">
+{
+    <FilterToolbar OnRefresh="ReloadAsync">
         <div class="md:col-span-6">
-            <label class="block text-sm font-medium text-ink-700">пїЅпїЅпїЅпїЅпїЅ</label>
-            <input class="tw-input mt-1" @bind="_search" placeholder="пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ" />
+            <label class="block text-sm font-medium text-ink-700">Поиск</label>
+            <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по клиенту" />
         </div>
         <div class="md:col-span-4">
-            <label class="block text-sm font-medium text-ink-700">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</label>
+            <label class="block text-sm font-medium text-ink-700">Биллинг</label>
             <select class="tw-select mt-1" @bind="_billing">
-                <option value="all">пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
-                <option value="ACTIVE">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
-                <option value="DEBT">пїЅпїЅпїЅпїЅ</option>
-                <option value="PAUSED">пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</option>
+                <option value="all">Все биллинговые статусы</option>
+                <option value="ACTIVE">Активен</option>
+                <option value="DEBT">Долг</option>
+                <option value="PAUSED">Приостановлен</option>
             </select>
         </div>
     </FilterToolbar>
@@ -40,12 +41,12 @@ else
     <table class="tw-table">
         <thead>
             <tr>
-                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅ</th>
-                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</th>
-                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅ</th>
-                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅ</th>
-                <th class="tw-th">пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ</th>
-                <th class="tw-th">пїЅпїЅпїЅпїЅ</th>
+                <th class="tw-th">Клиент</th>
+                <th class="tw-th">Телефон</th>
+                <th class="tw-th">Тариф</th>
+                <th class="tw-th">Биллинг</th>
+                <th class="tw-th">Последний платеж</th>
+                <th class="tw-th">Долг</th>
             </tr>
         </thead>
         <tbody>
@@ -57,7 +58,7 @@ else
                     <td class="tw-td">@client.Tariff</td>
                     <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
                     <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
-                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "пїЅпїЅ" : "пїЅпїЅпїЅ")</td>
+                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "Да" : "Нет")</td>
                 </tr>
             }
         </tbody>
@@ -114,11 +115,9 @@ else
     private static string TranslateBilling(string status) =>
         status switch
         {
-            "ACTIVE" => "пїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
-            "DEBT" => "пїЅпїЅпїЅпїЅ",
-            "PAUSED" => "пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ",
+            "ACTIVE" => "Активен",
+            "DEBT" => "Долг",
+            "PAUSED" => "Приостановлен",
             _ => status,
         };
 }
-
-

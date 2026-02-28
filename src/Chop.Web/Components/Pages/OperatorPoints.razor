@@ -1,4 +1,4 @@
-@page "/operator/points"
+﻿@page "/operator/points"
 @using System.Globalization
 @inject BackofficeApiClient Store
 @inject WebAuthSession Session
@@ -12,12 +12,10 @@
 {
     <LoadingMessage />
 }
-else if (!string.IsNullOrWhiteSpace(_error))
-{
-    <FlashMessages Error="@_error" ErrorClass="" />
-}
 else
 {
+    <FlashMessages Error="@_error" Success="@_success" ErrorClass="" SuccessClass="" />
+
     <div class="tw-card mb-4">
         <div class="tw-card-body">
             <div class="mb-2 text-sm font-semibold text-ink-900">Добавить точку охраны</div>
@@ -49,6 +47,9 @@ else
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-ink-700">Lon</label>
                     <input class="tw-input mt-1" @bind="_newLongitude" placeholder="76.9" />
+                </div>
+                <div class="md:col-span-8 text-xs text-ink-600">
+                    Координаты можно не указывать: сервер нормализует адрес и, если geocoding включен, попытается определить geo автоматически.
                 </div>
                 <div class="md:col-span-2 flex items-end">
                     <button type="button" class="tw-btn-primary w-full" @onclick="CreatePointAsync" disabled="@_busyMutation">Создать</button>
@@ -94,7 +95,10 @@ else
                         <label class="block text-sm font-medium text-ink-700">Lon</label>
                         <input class="tw-input mt-1" @bind="_editLongitude" />
                     </div>
-                    <div class="md:col-span-3 flex items-end">
+                    <div class="md:col-span-8 text-xs text-ink-600">
+                        Если очистить Lat/Lon, сервер попробует получить координаты по адресу автоматически (при включенном geocoding).
+                    </div>
+                    <div class="md:col-span-2 flex items-end">
                         <button type="button" class="tw-btn-primary w-full" @onclick="SavePointAsync" disabled="@_busyMutation">Сохранить</button>
                     </div>
                 </div>
@@ -139,6 +143,7 @@ else
                     <th class="tw-th">Метка</th>
                     <th class="tw-th">Тип</th>
                     <th class="tw-th">Адрес</th>
+                    <th class="tw-th">Geo</th>
                     <th class="tw-th">Состояние</th>
                     <th class="tw-th">Статус смены</th>
                     <th class="tw-th">Активные силы</th>
@@ -154,6 +159,7 @@ else
                         <td class="tw-td">@point.Label</td>
                         <td class="tw-td whitespace-nowrap">@TranslatePointType(point.Type)</td>
                         <td class="tw-td">@point.Address</td>
+                        <td class="tw-td whitespace-nowrap">@FormatGeo(point.Latitude, point.Longitude)</td>
                         <td class="tw-td whitespace-nowrap">@(point.IsActive ? "Активна" : "Отключена")</td>
                         <td class="tw-td whitespace-nowrap">@TranslateShiftStatus(point.ShiftStatus)</td>
                         <td class="tw-td whitespace-nowrap">@point.ActiveForces</td>
@@ -177,6 +183,7 @@ else
     private bool _loading = true;
     private bool _busyMutation;
     private string? _error;
+    private string? _success;
     private string? _search;
     private string _type = "all";
     private bool _includeInactive = true;
@@ -240,24 +247,30 @@ else
     private async Task CreatePointAsync()
     {
         _error = null;
+        _success = null;
         if (!TryParseCoordinates(_newLatitude, _newLongitude, out var lat, out var lon, out var error))
         {
             _error = error;
             return;
         }
 
+        var requestedAddress = _newAddress ?? string.Empty;
+        var hadManualGeo = lat.HasValue && lon.HasValue;
+
         _busyMutation = true;
         try
         {
-            await Store.CreatePointAsync(new CreateSecurityPointRequestDto
+            var created = await Store.CreatePointAsync(new CreateSecurityPointRequestDto
             {
                 Code = _newCode ?? string.Empty,
                 Label = _newLabel ?? string.Empty,
                 Type = _newType,
-                Address = _newAddress ?? string.Empty,
+                Address = requestedAddress,
                 Latitude = lat,
                 Longitude = lon,
             }, CancellationToken.None);
+
+            _success = BuildPointSaveResultMessage("Точка создана.", requestedAddress, hadManualGeo, created);
 
             _newCode = null;
             _newLabel = null;
@@ -289,9 +302,10 @@ else
         _editLabel = point.Label;
         _editType = point.Type;
         _editAddress = point.Address;
-        _editLatitude = null;
-        _editLongitude = null;
+        _editLatitude = point.Latitude?.ToString("G17", CultureInfo.InvariantCulture);
+        _editLongitude = point.Longitude?.ToString("G17", CultureInfo.InvariantCulture);
         _error = null;
+        _success = null;
     }
 
     private void CancelEdit()
@@ -313,24 +327,30 @@ else
         }
 
         _error = null;
+        _success = null;
         if (!TryParseCoordinates(_editLatitude, _editLongitude, out var lat, out var lon, out var error))
         {
             _error = error;
             return;
         }
 
+        var requestedAddress = _editAddress ?? string.Empty;
+        var hadManualGeo = lat.HasValue && lon.HasValue;
+
         _busyMutation = true;
         try
         {
-            await Store.UpdatePointAsync(_selectedPointId.Value, new UpdateSecurityPointRequestDto
+            var updated = await Store.UpdatePointAsync(_selectedPointId.Value, new UpdateSecurityPointRequestDto
             {
                 Code = _editCode ?? string.Empty,
                 Label = _editLabel ?? string.Empty,
                 Type = _editType,
-                Address = _editAddress ?? string.Empty,
+                Address = requestedAddress,
                 Latitude = lat,
                 Longitude = lon,
             }, CancellationToken.None);
+
+            _success = BuildPointSaveResultMessage("Точка обновлена.", requestedAddress, hadManualGeo, updated);
 
             CancelEdit();
             await ReloadAsync();
@@ -353,10 +373,12 @@ else
     private async Task TogglePointAsync(OperatorPointItemDto point)
     {
         _error = null;
+        _success = null;
         _busyMutation = true;
         try
         {
             await Store.TogglePointActiveAsync(point.Id, CancellationToken.None);
+            _success = point.IsActive ? "Точка деактивирована." : "Точка активирована.";
             await ReloadAsync();
         }
         catch (Exception ex)
@@ -421,6 +443,34 @@ else
         return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
 
+    private static string BuildPointSaveResultMessage(string prefix, string requestedAddress, bool hadManualGeo, OperatorPointItemDto result)
+    {
+        var notes = new List<string>();
+        if (!string.Equals((requestedAddress ?? string.Empty).Trim(), result.Address, StringComparison.Ordinal))
+        {
+            notes.Add($"адрес нормализован: '{result.Address}'");
+        }
+
+        if (!hadManualGeo)
+        {
+            if (result.Latitude.HasValue && result.Longitude.HasValue)
+            {
+                notes.Add("координаты определены автоматически");
+            }
+            else
+            {
+                notes.Add("координаты не определены автоматически, задайте Lat/Lon вручную");
+            }
+        }
+
+        if (notes.Count == 0)
+        {
+            return prefix;
+        }
+
+        return $"{prefix} {string.Join("; ", notes)}.";
+    }
+
     private static string TranslatePointType(string type) =>
         type switch
         {
@@ -437,6 +487,14 @@ else
             "LOW_STAFFED" => "Нехватка людей",
             _ => status,
         };
+
+    private static string FormatGeo(double? lat, double? lon)
+    {
+        if (!lat.HasValue || !lon.HasValue)
+        {
+            return "-";
+        }
+
+        return string.Create(CultureInfo.InvariantCulture, $"{lat.Value:F6}, {lon.Value:F6}");
+    }
 }
-
-

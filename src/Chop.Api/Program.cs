@@ -56,7 +56,12 @@ builder.Services.Configure<PasswordHashOptions>(builder.Configuration.GetSection
 builder.Services.Configure<NotificationOutboxOptions>(builder.Configuration.GetSection("Notifications:Outbox"));
 builder.Services.Configure<AlertSlaOptions>(builder.Configuration.GetSection("Alerts:Sla"));
 builder.Services.Configure<PlatformReliabilityOptions>(builder.Configuration.GetSection("Platform:Reliability"));
+builder.Services.Configure<SecurityPointAddressNormalizationOptions>(builder.Configuration.GetSection("SecurityPoints:AddressNormalization"));
 builder.Services.AddScoped<BackofficePaymentsStore>();
+builder.Services.AddHttpClient<ISecurityPointAddressNormalizer, SecurityPointAddressNormalizer>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(2);
+});
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
