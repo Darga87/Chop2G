@@ -1,83 +1,54 @@
 # 93_TAILWIND_PLAYBOOK
 
-Цель: Tailwind как единый styling-слой для всех UI (Web Console + Mobile), без Bootstrap.
+Цель: Tailwind как единый слой стилизации для Web Console и Mobile, без Bootstrap.
 
-## Как это собрано
-- Tailwind input: `styles/tailwind.css`
-- Tailwind output:
-  - Web: `src/Chop.Web/wwwroot/app.css`
-  - Mobile: `src/Chop.App.Mobile/wwwroot/app.css`
-- Сборка CSS:
-  - `npm run build:css` (оба таргета)
-  - `npm run watch:css:web`, `npm run watch:css:mobile`
+## Сборка CSS
+- Input: `styles/tailwind.css`
+- Output:
+- Web: `src/Chop.Web/wwwroot/app.css`
+- Mobile: `src/Chop.App.Mobile/wwwroot/app.css`
+- Команды:
+- `npm run build:css`
+- `npm run watch:css:web`
+- `npm run watch:css:mobile`
 
-Почему так: MAUI Blazor Hybrid и Web Console читают `wwwroot/app.css`, поэтому делаем 2 выходных файла из одного источника.
+## Правила
+- Повторяющиеся UI-паттерны выносить в `tw-*` классы и общие Razor-компоненты.
+- Не генерировать Tailwind-классы динамически через строки.
+- `safelist` использовать только при реальной необходимости и документировать причину.
 
-## Конвенции (чтобы не утонуть в utility-sprawl)
-- Предпочитать `tw-*` компонентные классы в `@layer components` для повторяющихся паттернов:
-  - `.tw-card`, `.tw-input`, `.tw-btn-*`, `.tw-alert-*`, `.tw-table`, `.tw-th`, `.tw-td`
-- На страницах допустимы утилиты Tailwind, но:
-  - не копировать большие наборы классов между файлами
-  - если блок повторяется 2+ раза, вынести в `tw-*` или компонент Razor
+Текущее состояние:
+- `tailwind.config.cjs` -> `safelist: []` (runtime-генерации классов не обнаружено).
 
-## Критичные будущие риски и как их закрывать
+## CI hardening
+- Anti-bootstrap guard: `scripts/ci/check-no-bootstrap.ps1`
+- CSS budget: `scripts/ci/check-css-budget.ps1`
+- Workflow: `.github/workflows/tailwind-css.yml`
+- Порядок:
+1. `npm ci`
+2. `npm run build:css`
+3. `check-no-bootstrap.ps1`
+4. `check-css-budget.ps1`
+5. Проверка, что сгенерированный CSS закоммичен
 
-### 1) Размер CSS (Tailwind bundle size)
-Риск: output разрастается, влияет на Web performance и MAUI WebView.
-Митигировать:
-- Держать `content` globs в `tailwind.config.cjs` точными.
-- Не генерировать классы динамически (например `class=$"text-{color}-500"`): Tailwind их не увидит.
-- Если нужны динамические варианты: либо фиксированный whitelist, либо `safelist` (и документировать зачем).
-
-### 2) Dynamic classnames (Blazor + Tailwind)
-Риск: условные классы через строки и интерполяцию могут не попасть в build.
-Митигировать:
-- Делать ветвления через готовые классы: `condition ? "tw-alert-danger" : "tw-alert-success"`.
-- Избегать построения tailwind-utility через переменные.
-- При необходимости: `safelist` в `tailwind.config.cjs` с минимальным набором.
-
-Текущее состояние (2026-03-01):
-- В `tailwind.config.cjs` `safelist` оставлен пустым (`[]`), т.к. аудит не выявил runtime-генерации utility-классов.
-- Любое добавление в `safelist` должно сопровождаться:
-- причиной (какой динамический кейс не покрывается content-scan),
-- ссылкой на файл/экран,
-- датой в этом документе.
-
-### 3) “Смешивание” UI-стэков (Bootstrap остатки)
-Риск: возвращение Bootstrap/частей темы приведёт к непредсказуемым стилям.
-Митигировать:
-- Bootstrap CSS/JS не подключать.
-- При code review: блокировать добавление `<link ...bootstrap...>` и `lib/bootstrap`.
-
-### 4) Node/npm как build-зависимость
-Риск: сборка UI будет требовать Node в CI/на машинах.
-Митигировать:
-- Для dev: команды `npm run build:css` документированы.
-- Для CI: добавить step `npm ci && npm run build:css` (позже, отдельная задача).
-- Опционально (позже): MSBuild target, но это усложняет чистую .NET сборку.
-
-### 5) MAUI safe-area и WebView quirks
-Риск: после генерации CSS потерять специфичные mobile-стили (safe-area).
-Митигировать:
-- Всё mobile-specific держать в `styles/tailwind.css` (как `.status-bar-safe-area`).
-- Перед релизом Mobile: smoke test на iOS notch/Android status bar.
-
-## Критерии “готово”
-- Нет подключений Bootstrap.
-- UI pages выглядят приемлемо с Tailwind (`tw-*`/utility classes).
-- Tailwind CSS собирается одной командой и не ломает Mobile safe-area.
-
-## CI hardening (2026-03-01)
-- Added anti-bootstrap guard script: `scripts/ci/check-no-bootstrap.ps1`.
-- Added CSS budget script: `scripts/ci/check-css-budget.ps1`.
-- Workflow `.github/workflows/tailwind-css.yml` now runs:
-  1. `npm ci`
-  2. `npm run build:css`
-  3. `pwsh ./scripts/ci/check-no-bootstrap.ps1`
-  4. `pwsh ./scripts/ci/check-css-budget.ps1 -MaxWebKb 128 -MaxMobileKb 128`
-
-Budget policy:
+## Perf budget (актуальный)
 - `src/Chop.Web/wwwroot/app.css` <= 128 KB
 - `src/Chop.App.Mobile/wwwroot/app.css` <= 128 KB
 
-If a legitimate bootstrap reference is required for migration/debug, it must be explicitly documented in this file and removed before merge.
+## Регулярный контроль производительности CSS
+- В CI: budget проверяется на каждом `push/pull_request`.
+- Локально перед merge:
+1. `npm run build:css`
+2. `powershell -ExecutionPolicy Bypass -File scripts/ci/check-css-budget.ps1 -MaxWebKb 128 -MaxMobileKb 128`
+- Периодический контроль (раз в 2 недели):
+- фиксировать фактический размер двух `app.css`,
+- если рост > 15% за период, проводить аудит новых utility/component слоёв.
+
+## Запрет на возврат Bootstrap
+- Нельзя подключать Bootstrap CSS/JS и `wwwroot/lib/bootstrap`.
+- Любое временное исключение только через документированное решение в `docs/90_DECISIONS.md` с датой и планом удаления.
+
+## Критерии готовности
+- Bootstrap отсутствует в runtime.
+- CSS проходит budget-проверку в CI.
+- Tailwind-стили одинаково корректно работают в Web и Mobile.

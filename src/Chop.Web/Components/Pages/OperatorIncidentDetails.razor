@@ -157,6 +157,7 @@ else
 
         RealtimeClient.IncidentStatusChanged += OnIncidentStatusChanged;
         await RealtimeClient.EnsureConnectedAsync(CancellationToken.None);
+        await RealtimeClient.SubscribeIncidentAsync(Id, CancellationToken.None);
         await LoadAsync();
     }
 
@@ -227,6 +228,7 @@ else
     public void Dispose()
     {
         RealtimeClient.IncidentStatusChanged -= OnIncidentStatusChanged;
+        _ = RealtimeClient.UnsubscribeIncidentAsync(Id, CancellationToken.None);
     }
 
     private static string TranslateStatus(string? status) =>

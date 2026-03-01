@@ -62,6 +62,7 @@ public sealed class SignalRIncidentsTests : IClassFixture<TestWebApplicationFact
             }
         });
         await connection.StartAsync();
+        await connection.InvokeAsync("SubscribeIncident", incidentId);
 
         using var statusMessage = new HttpRequestMessage(HttpMethod.Post, $"/api/operator/incidents/{incidentId}/status")
         {
@@ -108,6 +109,7 @@ public sealed class SignalRIncidentsTests : IClassFixture<TestWebApplicationFact
             }
         });
         await connection.StartAsync();
+        await connection.InvokeAsync("SubscribeIncident", incidentId);
 
         using var dispatchMessage = new HttpRequestMessage(HttpMethod.Post, $"/api/operator/incidents/{incidentId}/dispatch")
         {
@@ -152,6 +154,7 @@ public sealed class SignalRIncidentsTests : IClassFixture<TestWebApplicationFact
             }
         });
         await connection.StartAsync();
+        await connection.InvokeAsync("SubscribeIncident", incidentId);
 
         using var dispatchMessage = new HttpRequestMessage(HttpMethod.Post, $"/api/operator/incidents/{incidentId}/dispatch")
         {

@@ -80,5 +80,7 @@ MVP вариант (минимально рискованный):
 - cannot remove last role of a user.
 - cannot remove own `SUPERADMIN` role.
 - cannot remove the last `SUPERADMIN` in system.
+
+Отдельный артефакт по Web-доступам (страницы/действия/поля): `docs/98_RBAC_MATRIX_WEB.md`.
 - cannot deactivate own account.
 - All operations are audited under `identity.user.*` actions.

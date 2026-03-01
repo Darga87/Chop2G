@@ -75,8 +75,10 @@
 - [x] События MVP: `IncidentCreated`, `IncidentStatusChanged`, `DispatchCreated`, `DispatchAccepted`, `GuardLocationUpdated`
 - [x] Маршрутизация по группе `ops:*`
 - [x] Унификация публикации: SignalR события доставляются через platform outbox (без direct-send/dual-path)
+- [x] Scoped routing phase 1: добавлены incident-scopes (`scope:incident:{id}`) + Hub методы `SubscribeIncident/UnsubscribeIncident` + web-подписка страниц оператора
+- [x] Payload realtime-событий расширен `scope`-метаданными (`incidentId/clientUserId/regionCode/shiftKey`)
 ### Осталось
-- [ ] Расширить маршрутизацию по отдельным operational scopes (по клиентам/регионам/сменам)
+- [ ] Полностью перевести operator-поток на operational scopes по клиентам/регионам/сменам (с выдачей scope claims в JWT и policy mapping)
 
 ## Task-006: Web Console
 ### Сделано
@@ -170,7 +172,7 @@
 - [x] Audit на “везде Tailwind”: убраны legacy bootstrap classnames из `src/**` (в т.ч. mobile template pages/layout)
 - [x] Зафиксировать финальный Theme Pack (A/B/C) и перенести выбранные токены из `docs/95_UI_KIT.md` в `styles/tailwind.css`
 ### Риски (фиксируем, чтобы не забыть)
-- [ ] Размер CSS / performance (Web + MAUI WebView) -> ограничивать content globs, избегать dynamic classnames
+- [x] Размер CSS / performance (Web + MAUI WebView) -> введены budget-порог и регламент регулярного мониторинга в `docs/93_TAILWIND_PLAYBOOK.md`
 - [x] Node/npm как build-dependency -> зафиксировано в CI (`.github/workflows/tailwind-css.yml`)
 - [ ] MAUI safe-area/quirks -> smoke-check перед релизом Mobile
 - [x] Возврат Bootstrap (случайно) -> добавлен anti-bootstrap guard в CI (`scripts/ci/check-no-bootstrap.ps1`)
@@ -411,11 +413,11 @@
 - [x] Task-028 закрыт
 
 ## Backlog: Новые идеи и внеплановые задачи
-- [ ] RBAC matrix как отдельный артефакт (кто какие поля/действия видит)
+- [x] RBAC matrix как отдельный артефакт (кто какие поля/действия видит) -> `docs/98_RBAC_MATRIX_WEB.md`
 - [ ] Data retention policy документом (таблица -> срок -> основание)
-- [ ] API error catalog (единый список кодов ошибок для frontend/mobile)
+- [x] API error catalog (единый список кодов ошибок для frontend/mobile) -> `docs/97_API_ERRORS.md` + `ApiErrorFormatter/UiErrorMapper`
 - [ ] Incident SLA alerts (время без назначения, время до принятия, время до закрытия)
-- [ ] Local dev bootstrap: документировать обязательные зависимости (Postgres service, порты) и типовые ошибки запуска (см. `docs/94_LOCAL_DEV.md`)
+- [x] Local dev bootstrap: документировать обязательные зависимости (Postgres service, порты) и типовые ошибки запуска (см. `docs/94_LOCAL_DEV.md`)
 
 ## Task-031: PII override per user (SUPERADMIN)
 ### Сделано

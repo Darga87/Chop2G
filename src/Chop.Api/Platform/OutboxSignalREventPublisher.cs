@@ -27,7 +27,71 @@ public sealed class OutboxSignalREventPublisher : IOutboxEventPublisher
         };
 
         var payload = JsonSerializer.Deserialize<JsonElement>(payloadJson);
-        await _hubContext.Clients.Group(IncidentRealtimeGroups.Ops)
-            .SendAsync(method, payload, cancellationToken);
+        foreach (var destination in ResolveDestinations(eventType, payload))
+        {
+            await _hubContext.Clients.Group(destination)
+                .SendAsync(method, payload, cancellationToken);
+        }
+    }
+
+    private static IReadOnlyCollection<string> ResolveDestinations(string eventType, JsonElement payload)
+    {
+        var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            IncidentRealtimeGroups.AdminRole,
+            IncidentRealtimeGroups.SuperAdminRole,
+        };
+
+        if (eventType.Equals("realtime.incident-created", StringComparison.OrdinalIgnoreCase))
+        {
+            result.Add(IncidentRealtimeGroups.OperatorRole);
+        }
+        else if (TryReadScope(payload, out var scope))
+        {
+            if (scope.IncidentId is Guid incidentId)
+            {
+                result.Add(IncidentRealtimeGroups.IncidentScope(incidentId));
+            }
+
+            if (!string.IsNullOrWhiteSpace(scope.ClientUserId))
+            {
+                result.Add(IncidentRealtimeGroups.ClientScope(scope.ClientUserId));
+            }
+
+            if (!string.IsNullOrWhiteSpace(scope.RegionCode))
+            {
+                result.Add(IncidentRealtimeGroups.RegionScope(scope.RegionCode));
+            }
+
+            if (!string.IsNullOrWhiteSpace(scope.ShiftKey))
+            {
+                result.Add(IncidentRealtimeGroups.ShiftScope(scope.ShiftKey));
+            }
+        }
+        else
+        {
+            // Backward-compatible fallback for payloads without scope metadata.
+            result.Add(IncidentRealtimeGroups.OperatorRole);
+        }
+
+        return result;
+    }
+
+    private static bool TryReadScope(JsonElement payload, out RealtimeScopeDto scope)
+    {
+        scope = new RealtimeScopeDto();
+        if (!payload.TryGetProperty("scope", out var scopeJson))
+        {
+            return false;
+        }
+
+        var deserialized = scopeJson.Deserialize<RealtimeScopeDto>();
+        if (deserialized is null)
+        {
+            return false;
+        }
+
+        scope = deserialized;
+        return true;
     }
 }

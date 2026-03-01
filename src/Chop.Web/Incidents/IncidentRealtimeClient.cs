@@ -12,6 +12,7 @@ public sealed class IncidentRealtimeClient : IAsyncDisposable
     private readonly WebAuthSession _session;
     private readonly NavigationManager _navigationManager;
     private HubConnection? _connection;
+    private readonly HashSet<Guid> _incidentSubscriptions = [];
 
     public event Action<IncidentCreatedEvent>? IncidentCreated;
 
@@ -58,15 +59,68 @@ public sealed class IncidentRealtimeClient : IAsyncDisposable
         _connection.On<GuardLocationUpdatedEvent>("GuardLocationUpdated", payload => GuardLocationUpdated?.Invoke(payload));
 
         _connection.Closed += HandleConnectionClosedAsync;
+        _connection.Reconnected += HandleReconnectedAsync;
 
         try
         {
             await _connection.StartAsync(cancellationToken);
+            await RestoreIncidentSubscriptionsAsync(cancellationToken);
         }
         catch (Exception ex) when (HandleAuthFailure(ex))
         {
             await SafeDisposeConnectionAsync();
         }
+    }
+
+    public async Task SyncIncidentSubscriptionsAsync(IEnumerable<Guid> incidentIds, CancellationToken cancellationToken)
+    {
+        var target = incidentIds.Distinct().ToHashSet();
+
+        var toUnsubscribe = _incidentSubscriptions
+            .Where(x => !target.Contains(x))
+            .ToArray();
+        foreach (var incidentId in toUnsubscribe)
+        {
+            await UnsubscribeIncidentAsync(incidentId, cancellationToken);
+        }
+
+        var toSubscribe = target
+            .Where(x => !_incidentSubscriptions.Contains(x))
+            .ToArray();
+        foreach (var incidentId in toSubscribe)
+        {
+            await SubscribeIncidentAsync(incidentId, cancellationToken);
+        }
+    }
+
+    public async Task SubscribeIncidentAsync(Guid incidentId, CancellationToken cancellationToken)
+    {
+        if (!_incidentSubscriptions.Add(incidentId))
+        {
+            return;
+        }
+
+        if (_connection is not { State: HubConnectionState.Connected })
+        {
+            return;
+        }
+
+        await _connection.InvokeAsync("SubscribeIncident", incidentId, cancellationToken);
+    }
+
+    public async Task UnsubscribeIncidentAsync(Guid incidentId, CancellationToken cancellationToken)
+    {
+        if (!_incidentSubscriptions.Remove(incidentId))
+        {
+            return;
+        }
+
+        if (_connection is not { State: HubConnectionState.Connected })
+        {
+            return;
+        }
+
+        await _connection.InvokeAsync("UnsubscribeIncident", incidentId, cancellationToken);
     }
 
     private Uri ResolveHubUri()
@@ -94,6 +148,11 @@ public sealed class IncidentRealtimeClient : IAsyncDisposable
 
         HandleAuthFailure(ex);
         return Task.CompletedTask;
+    }
+
+    private async Task HandleReconnectedAsync(string? _)
+    {
+        await RestoreIncidentSubscriptionsAsync(CancellationToken.None);
     }
 
     private bool HandleAuthFailure(Exception ex)
@@ -136,11 +195,26 @@ public sealed class IncidentRealtimeClient : IAsyncDisposable
         try
         {
             _connection.Closed -= HandleConnectionClosedAsync;
+            _connection.Reconnected -= HandleReconnectedAsync;
             await _connection.DisposeAsync();
         }
         finally
         {
             _connection = null;
+            _incidentSubscriptions.Clear();
+        }
+    }
+
+    private async Task RestoreIncidentSubscriptionsAsync(CancellationToken cancellationToken)
+    {
+        if (_connection is not { State: HubConnectionState.Connected } || _incidentSubscriptions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var incidentId in _incidentSubscriptions)
+        {
+            await _connection.InvokeAsync("SubscribeIncident", incidentId, cancellationToken);
         }
     }
 }

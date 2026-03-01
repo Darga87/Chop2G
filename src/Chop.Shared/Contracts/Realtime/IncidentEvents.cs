@@ -4,13 +4,32 @@ namespace Chop.Shared.Contracts.Realtime;
 
 public static class IncidentRealtimeGroups
 {
-    public const string Ops = "ops:*";
+    public const string OpsLegacy = "ops:*";
 
     public const string OperatorRole = "role:OPERATOR";
 
     public const string AdminRole = "role:ADMIN";
 
     public const string SuperAdminRole = "role:SUPERADMIN";
+
+    public static string IncidentScope(Guid incidentId) => $"scope:incident:{incidentId:D}";
+
+    public static string ClientScope(string clientUserId) => $"scope:client:{clientUserId}";
+
+    public static string RegionScope(string regionCode) => $"scope:region:{regionCode}";
+
+    public static string ShiftScope(string shiftKey) => $"scope:shift:{shiftKey}";
+}
+
+public sealed class RealtimeScopeDto
+{
+    public Guid? IncidentId { get; set; }
+
+    public string? ClientUserId { get; set; }
+
+    public string? RegionCode { get; set; }
+
+    public string? ShiftKey { get; set; }
 }
 
 public sealed class IncidentCreatedEvent
@@ -22,6 +41,8 @@ public sealed class IncidentCreatedEvent
     public string Type { get; set; } = "IncidentCreated";
 
     public IncidentDto Incident { get; set; } = new();
+
+    public RealtimeScopeDto Scope { get; set; } = new();
 }
 
 public sealed class IncidentStatusChangedEvent
@@ -45,6 +66,8 @@ public sealed class IncidentStatusChangedEvent
     public string? Comment { get; set; }
 
     public IncidentDto Incident { get; set; } = new();
+
+    public RealtimeScopeDto Scope { get; set; } = new();
 }
 
 public sealed class DispatchCreatedEvent
@@ -56,6 +79,8 @@ public sealed class DispatchCreatedEvent
     public string Type { get; set; } = "DispatchCreated";
 
     public Guid IncidentId { get; set; }
+
+    public RealtimeScopeDto Scope { get; set; } = new();
 }
 
 public sealed class DispatchAcceptedEvent
@@ -71,6 +96,8 @@ public sealed class DispatchAcceptedEvent
     public string GuardUserId { get; set; } = string.Empty;
 
     public string? Comment { get; set; }
+
+    public RealtimeScopeDto Scope { get; set; } = new();
 }
 
 public sealed class GuardLocationUpdatedEvent
@@ -86,4 +113,6 @@ public sealed class GuardLocationUpdatedEvent
     public string GuardUserId { get; set; } = string.Empty;
 
     public IncidentLocationDto Location { get; set; } = new();
+
+    public RealtimeScopeDto Scope { get; set; } = new();
 }

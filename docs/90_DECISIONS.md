@@ -333,3 +333,26 @@
 - Rationale:
   - Стабилизировать визуальную базу UI для MVP.
   - Избежать бесконтрольного роста CSS и скрытых зависимостей от runtime-генерации классов.
+
+## DEC-033: SignalR scoped routing (phase 1)
+- Date: 2026-03-01
+- Context: нужно уйти от широкого realtime-потока для всех операторов и перейти к маршрутизации по scope.
+- Decision:
+  - Введены scoped-группы по инциденту: `scope:incident:{incidentId}`.
+  - Hub расширен методами `SubscribeIncident` / `UnsubscribeIncident`.
+  - Web операторские страницы подписываются на инциденты явно.
+  - Realtime payload дополнен `scope`-метаданными (`incidentId/clientUserId/regionCode/shiftKey`) для phase 2.
+- Rationale:
+  - Снижение шумовых событий в операторском контуре.
+  - Технический фундамент для client/region/shift routing.
+
+## DEC-034: Единый каталог API ошибок для UI
+- Date: 2026-03-01
+- Context: Web/Mobile должны одинаково и предсказуемо обрабатывать API-ошибки.
+- Decision:
+  - Введен единый каталог app-кодов (`API.UNAUTHORIZED`, `API.FORBIDDEN`, `API.VALIDATION`, ...).
+  - В Web стандартизованы `ApiErrorFormatter` и `UiErrorMapper`.
+  - Каталог и UX-правила зафиксированы в `docs/97_API_ERRORS.md`.
+- Rationale:
+  - Единый UX для 401/403/429/5xx.
+  - Улучшенная диагностика через `traceId`.

@@ -250,20 +250,26 @@ Hub: /hubs/incidents
 Auth: JWT, роли `OPERATOR/ADMIN/SUPERADMIN`.
 
 Группы:
-- `ops:*` — общий поток для пульта.
 - `role:OPERATOR`, `role:ADMIN`, `role:SUPERADMIN` — role-группы для маршрутизации.
+- `scope:incident:{incidentId}` — основной scoped-канал инцидента (status/dispatch/geo).
+- `scope:client:{clientUserId}` / `scope:region:{regionCode}` / `scope:shift:{shiftKey}` — дополнительные scope-группы (подключаются по claims `ops_client_scope` / `ops_region_scope` / `ops_shift_scope`).
+- `ops:*` — legacy fallback (для `ADMIN/SUPERADMIN`).
+
+Методы Hub:
+- `SubscribeIncident(incidentId)` — подписка на scoped-поток конкретного инцидента.
+- `UnsubscribeIncident(incidentId)` — отписка от scoped-потока инцидента.
 
 События MVP:
 - `IncidentCreated`
-  - payload: `{ eventId, occurredAtUtc, type, incident: IncidentDto }`
+  - payload: `{ eventId, occurredAtUtc, type, incident: IncidentDto, scope: { incidentId?, clientUserId?, regionCode?, shiftKey? } }`
 - `IncidentStatusChanged`
-  - payload: `{ eventId, occurredAtUtc, type, incidentId, fromStatus, toStatus, actorUserId, actorRole, comment?, incident: IncidentDto }`
+  - payload: `{ eventId, occurredAtUtc, type, incidentId, fromStatus, toStatus, actorUserId, actorRole, comment?, incident: IncidentDto, scope: { incidentId?, clientUserId?, regionCode?, shiftKey? } }`
 - `DispatchCreated`
-  - payload: `{ eventId, occurredAtUtc, type, incidentId }`
+  - payload: `{ eventId, occurredAtUtc, type, incidentId, scope: { incidentId?, clientUserId?, regionCode?, shiftKey? } }`
 - `DispatchAccepted`
-  - payload: `{ eventId, occurredAtUtc, type, incidentId, guardUserId, comment? }`
+  - payload: `{ eventId, occurredAtUtc, type, incidentId, guardUserId, comment?, scope: { incidentId?, clientUserId?, regionCode?, shiftKey? } }`
 - `GuardLocationUpdated`
-  - payload: `{ eventId, occurredAtUtc, type, incidentId, guardUserId, location: { lat, lon, accuracyM? } }`
+  - payload: `{ eventId, occurredAtUtc, type, incidentId, guardUserId, location: { lat, lon, accuracyM? }, scope: { incidentId?, clientUserId?, regionCode?, shiftKey? } }`
 
 ## 10. Web Backoffice (MVP endpoints)
 ### GET /hr/guards

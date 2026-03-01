@@ -95,6 +95,7 @@ else
 
         _items.RemoveAll(x => x.Id == mapped.Id);
         _items.Insert(0, mapped);
+        await RealtimeClient.SubscribeIncidentAsync(mapped.Id, CancellationToken.None);
         await InvokeAsync(StateHasChanged);
     }
 
@@ -133,6 +134,7 @@ else
             var page = await ApiClient.GetIncidentsAsync(_statusFilter, null, null, 1, 50, CancellationToken.None);
             _items.Clear();
             _items.AddRange(page.Items);
+            await RealtimeClient.SyncIncidentSubscriptionsAsync(_items.Select(x => x.Id), CancellationToken.None);
         }
         catch (Exception ex)
         {
@@ -153,6 +155,7 @@ else
     {
         RealtimeClient.IncidentCreated -= OnIncidentCreated;
         RealtimeClient.IncidentStatusChanged -= OnIncidentStatusChanged;
+        _ = RealtimeClient.SyncIncidentSubscriptionsAsync([], CancellationToken.None);
     }
 
     private static string TranslateStatus(string status) =>

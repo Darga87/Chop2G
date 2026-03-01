@@ -8,15 +8,20 @@ public static class UiErrorMapper
     {
         if (ex is HttpRequestException http)
         {
-            var message = (http.Message ?? string.Empty).Trim();
-            if (message.Contains("Сессия истекла", StringComparison.OrdinalIgnoreCase))
+            if (http.StatusCode == HttpStatusCode.Unauthorized)
             {
                 return "Сессия истекла. Войдите в систему повторно.";
             }
 
-            if (message.Contains("Недостаточно прав", StringComparison.OrdinalIgnoreCase))
+            if (http.StatusCode == HttpStatusCode.Forbidden)
             {
                 return "Недостаточно прав для выполнения операции.";
+            }
+
+            var message = (http.Message ?? string.Empty).Trim();
+            if (message.Contains("Код: API.", StringComparison.OrdinalIgnoreCase))
+            {
+                return message;
             }
 
             if (message.Contains("Endpoint:", StringComparison.OrdinalIgnoreCase))
