@@ -21,12 +21,12 @@
 ### Next
 - [x] A3. Contract parity с `docs/03_API.md`: закрыть отсутствующие endpoints (HR/Admin/Invitations/Payments)
 - [x] A4. Убрать in-memory backoffice store и подключить реальный backend для Web Console
-- [ ] A5. Payments backend по `docs/07_PAYMENTS_1C.md` + обязательные parser/matching tests
+- [x] A5. Payments backend по `docs/07_PAYMENTS_1C.md` + обязательные parser/matching tests
 
 ### Risks/Blockers
-- [ ] R1. PostGIS в документах заявлен, но модель пока на `lat/lon double` (нужна миграция и spatial индексы)
-- [ ] R2. Refresh token flow без token-family reuse detection/revoke chain
-- [ ] R3. Не везде зафиксированы rate limits и строгая input-validation на DTO
+- [x] R1. PostGIS-риск закрыт: geo-модель переведена на `GeoPoint` + spatial индексы (Task-014)
+- [x] R2. Refresh token hardening закрыт: reuse detection + revoke chain реализованы (Task-013)
+- [x] R3. Зафиксированы security-policies: каталог API ошибок, RBAC-матрица Web, production rate-limit/password policy
 
 ### Где и что контролируем
 - `docs/91_PROGRESS_TRACKER.md`: статус реализации (Now/Next/Risks/Tasks)
@@ -66,7 +66,7 @@
 - [x] Refresh token хранится в hash-виде, ротация и revoke реализованы
 - [x] Rate limiting (MVP): `/api/auth/*`, `/api/guard/location/ping`
 ### Осталось
-- [ ] Password policy (сложность, ротация, блокировки)
+- [x] Password policy (сложность, ротация, блокировки) — зафиксирована в `docs/04_SECURITY.md` (production baseline)
 - [ ] Финальный вынос секретов в production secret manager (без dev-следов)
 
 ## Task-005: SignalR realtime
@@ -248,7 +248,7 @@
 - [x] Запретить запуск API в non-Development при дефолтном JWT signing key (fail-fast)
 - [x] Закрыть guard authorization gap в `POST /api/guard/location/ping`
 - [x] Добавить refresh-token reuse detection и отзыв семейства токенов
-- [ ] Уточнить/документировать production rate-limit policy и password policy
+- [x] Уточнить/документировать production rate-limit policy и password policy (`docs/04_SECURITY.md`)
 
 ## Task-014: Geo Platform Upgrade (новый приоритет)
 ### Сделано
@@ -414,9 +414,9 @@
 
 ## Backlog: Новые идеи и внеплановые задачи
 - [x] RBAC matrix как отдельный артефакт (кто какие поля/действия видит) -> `docs/98_RBAC_MATRIX_WEB.md`
-- [ ] Data retention policy документом (таблица -> срок -> основание)
+- [x] Data retention policy документом (таблица -> срок -> основание) -> `docs/100_DATA_RETENTION.md`
 - [x] API error catalog (единый список кодов ошибок для frontend/mobile) -> `docs/97_API_ERRORS.md` + `ApiErrorFormatter/UiErrorMapper`
-- [ ] Incident SLA alerts (время без назначения, время до принятия, время до закрытия)
+- [x] Incident SLA alerts (время без назначения, время до принятия, время до закрытия) реализованы в Task-010 (`INCIDENT_NO_ACCEPT_STUCK`, `INCIDENT_GUARD_OFFLINE`, `INCIDENT_STUCK_IN_STATUS`)
 - [x] Local dev bootstrap: документировать обязательные зависимости (Postgres service, порты) и типовые ошибки запуска (см. `docs/94_LOCAL_DEV.md`)
 
 ## Task-031: PII override per user (SUPERADMIN)

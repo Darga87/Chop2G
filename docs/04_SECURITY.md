@@ -72,15 +72,38 @@ MVP вариант (минимально рискованный):
 - `ACCOUNTANT`: only payments/import scope (`/admin/payments/import*`), no incidents/HR.
 - `ADMIN`: incidents + clients + payments, no `SUPERADMIN` endpoints.
 - `SUPERADMIN`: full access including `/api/superadmin/*`, audit, system settings.
+- Отдельный артефакт по Web-доступам (страницы/действия/поля): `docs/98_RBAC_MATRIX_WEB.md`.
 
 ## 9. Backoffice Identity Admin Rules (Task-021)
 - Backoffice user lifecycle is managed only by `SUPERADMIN` endpoints `/api/superadmin/users*`.
 - Allowed managed roles: `HR`, `OPERATOR`, `MANAGER`, `ACCOUNTANT`, `ADMIN`, `SUPERADMIN`.
 - Security restrictions:
-- cannot remove last role of a user.
-- cannot remove own `SUPERADMIN` role.
-- cannot remove the last `SUPERADMIN` in system.
-
-Отдельный артефакт по Web-доступам (страницы/действия/поля): `docs/98_RBAC_MATRIX_WEB.md`.
+- cannot remove last role of a user;
+- cannot remove own `SUPERADMIN` role;
+- cannot remove the last `SUPERADMIN` in system;
 - cannot deactivate own account.
 - All operations are audited under `identity.user.*` actions.
+
+## 10. Production Policy Baseline
+### 10.1 Password policy
+- Минимальная длина: 10 символов.
+- Требования: минимум 1 цифра и 1 буква.
+- Запрещены очевидные и утекшие пароли (top common password list).
+- Смена/сброс пароля фиксируются в аудите.
+
+### 10.2 Rate limiting policy
+- `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/invitations/accept`:
+  - лимит по IP + login/user fingerprint.
+- `POST /api/incidents`:
+  - лимит по client-user + анти-дубликат окно (idempotency/dedup).
+- `POST /api/guard/location/ping`:
+  - лимит по guard-user + троттлинг realtime публикаций.
+- При превышении лимита возвращать `429` с единым кодом `API.RATE_LIMIT`.
+
+### 10.3 Error handling contract
+- Единый каталог кодов ошибок для UI: `docs/97_API_ERRORS.md`.
+- Пользователь не должен видеть stack trace.
+- Для 5xx в ответе/логах обязателен `traceId`.
+
+### 10.4 Data retention
+- Политика хранения данных: `docs/100_DATA_RETENTION.md`.
