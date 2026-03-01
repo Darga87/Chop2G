@@ -23,37 +23,41 @@
 
 @if (_imports.Count > 0)
 {
-    <table class="tw-table">
-        <thead>
-            <tr>
-                <th class="tw-th">Создан</th>
-                <th class="tw-th">Файл</th>
-                <th class="tw-th">Статус</th>
-                <th class="tw-th">Строк</th>
-                <th class="tw-th">Сопоставлено</th>
-                <th class="tw-th">Неоднозначно</th>
-                <th class="tw-th">Ошибки</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var import in _imports)
-            {
-                <tr class="@(import.Id == _selectedImportId ? "bg-sky-50" : "odd:bg-white even:bg-ink-50")">
-                    <td class="tw-td whitespace-nowrap">@import.CreatedAtUtc.ToLocalTime().ToString("g")</td>
-                    <td class="tw-td">@import.FileName</td>
-                    <td class="tw-td whitespace-nowrap">@import.Status</td>
-                    <td class="tw-td whitespace-nowrap">@import.TotalRows</td>
-                    <td class="tw-td whitespace-nowrap">@import.MatchedRows</td>
-                    <td class="tw-td whitespace-nowrap">@import.AmbiguousRows</td>
-                    <td class="tw-td whitespace-nowrap">@import.InvalidRows</td>
-                    <td>
-                        <button class="tw-btn-outline" @onclick="() => SelectImportAsync(import.Id)">Открыть</button>
-                    </td>
+    <TableShell HasRows="@_imports.Any()" EmptyText="Импорты пока отсутствуют.">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Создан</th>
+                    <th class="tw-th">Файл</th>
+                    <th class="tw-th">Статус</th>
+                    <th class="tw-th">Строк</th>
+                    <th class="tw-th">Сопоставлено</th>
+                    <th class="tw-th">Неоднозначно</th>
+                    <th class="tw-th">Ошибки</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var import in _imports)
+                {
+                    <tr class="@(import.Id == _selectedImportId ? "bg-sky-50" : "odd:bg-white even:bg-ink-50")">
+                        <td class="tw-td whitespace-nowrap">@import.CreatedAtUtc.ToLocalTime().ToString("g")</td>
+                        <td class="tw-td">@import.FileName</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@TranslateImportStatus(import.Status)" Tone="@ImportStatusTone(import.Status)" />
+                        </td>
+                        <td class="tw-td whitespace-nowrap">@import.TotalRows</td>
+                        <td class="tw-td whitespace-nowrap">@import.MatchedRows</td>
+                        <td class="tw-td whitespace-nowrap">@import.AmbiguousRows</td>
+                        <td class="tw-td whitespace-nowrap">@import.InvalidRows</td>
+                        <td>
+                            <button class="tw-btn-outline" @onclick="() => SelectImportAsync(import.Id)">Открыть</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </TableShell>
 }
 
 @if (_selectedImport is not null)
@@ -69,36 +73,40 @@
         </button>
     </div>
 
-    <table class="tw-table">
-        <thead>
-            <tr>
-                <th class="tw-th">Референс</th>
-                <th class="tw-th">Дата</th>
-                <th class="tw-th">Сумма</th>
-                <th class="tw-th">Статус</th>
-                <th class="tw-th">Клиент</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var row in _selectedRows)
-            {
-                <tr class="odd:bg-white even:bg-ink-50">
-                    <td class="tw-td whitespace-nowrap">@row.Reference</td>
-                    <td class="tw-td whitespace-nowrap">@row.PaymentDateUtc.ToLocalTime().ToString("d")</td>
-                    <td class="tw-td whitespace-nowrap">@row.Amount</td>
-                    <td class="tw-td whitespace-nowrap">@row.MatchStatus</td>
-                    <td class="tw-td">@(@row.ClientDisplayName ?? "-")</td>
-                    <td>
-                        @if (row.MatchStatus == "AMBIGUOUS")
-                        {
-                            <button class="tw-btn-warning" @onclick="() => ManualMatchAsync(row.Id)">Ручное сопоставление</button>
-                        }
-                    </td>
+    <TableShell HasRows="@_selectedRows.Any()" EmptyText="В выбранном импорте нет строк.">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Референс</th>
+                    <th class="tw-th">Дата</th>
+                    <th class="tw-th">Сумма</th>
+                    <th class="tw-th">Статус</th>
+                    <th class="tw-th">Клиент</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var row in _selectedRows)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td whitespace-nowrap">@row.Reference</td>
+                        <td class="tw-td whitespace-nowrap">@row.PaymentDateUtc.ToLocalTime().ToString("d")</td>
+                        <td class="tw-td whitespace-nowrap">@row.Amount</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@TranslateMatchStatus(row.MatchStatus)" Tone="@MatchStatusTone(row.MatchStatus)" />
+                        </td>
+                        <td class="tw-td">@(@row.ClientDisplayName ?? "-")</td>
+                        <td>
+                            @if (row.MatchStatus == "AMBIGUOUS")
+                            {
+                                <button class="tw-btn-warning" @onclick="() => ManualMatchAsync(row.Id)">Ручное сопоставление</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </TableShell>
 }
 
 @code {
@@ -192,5 +200,40 @@
         await ReloadImportsAsync();
         await SelectImportAsync(_selectedImport.Id);
     }
-}
 
+    private static string TranslateImportStatus(string status) =>
+        status switch
+        {
+            "DRAFT" => "Черновик",
+            "APPLIED" => "Применён",
+            _ => status,
+        };
+
+    private static string ImportStatusTone(string status) =>
+        status switch
+        {
+            "APPLIED" => "success",
+            "DRAFT" => "info",
+            _ => "neutral",
+        };
+
+    private static string TranslateMatchStatus(string status) =>
+        status switch
+        {
+            "MATCHED" => "Сопоставлен",
+            "AMBIGUOUS" => "Неоднозначно",
+            "UNMATCHED" => "Не сопоставлен",
+            "INVALID" => "Ошибка",
+            _ => status,
+        };
+
+    private static string MatchStatusTone(string status) =>
+        status switch
+        {
+            "MATCHED" => "success",
+            "AMBIGUOUS" => "warning",
+            "UNMATCHED" => "neutral",
+            "INVALID" => "danger",
+            _ => "neutral",
+        };
+}

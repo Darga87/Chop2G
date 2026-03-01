@@ -1,0 +1,26 @@
+<div class="@WrapperClass">
+    @if (HasRows)
+    {
+        @ChildContent
+    }
+    else
+    {
+        <div class="rounded-md border border-ink-200 bg-white p-4 text-sm text-ink-600">
+            @EmptyText
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter]
+    public bool HasRows { get; set; }
+
+    [Parameter]
+    public string EmptyText { get; set; } = "Нет данных для отображения.";
+
+    [Parameter]
+    public string WrapperClass { get; set; } = "overflow-x-auto";
+}

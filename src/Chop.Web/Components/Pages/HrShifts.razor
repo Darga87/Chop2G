@@ -1,12 +1,11 @@
-@page "/hr/shifts"
 @page "/operator/shifts"
 @inject BackofficeApiClient Store
 @inject WebAuthSession Session
 @inject NavigationManager NavigationManager
 
-<PageTitle>Смены охраны (HR)</PageTitle>
+<PageTitle>Смены охраны</PageTitle>
 
-<h1 class="mb-4">Смены охраны (HR)</h1>
+<h1 class="mb-4">Смены охраны</h1>
 
 @if (_loading)
 {
@@ -113,7 +112,7 @@ else
             return;
         }
 
-        if (!Session.IsInAnyRole(RoleConstants.ShiftRoles))
+        if (!Session.IsInAnyRole(RoleConstants.OpsRoles))
         {
             NavigationManager.NavigateTo("/forbidden", replace: true);
             return;
@@ -218,4 +217,3 @@ else
         }
     }
 }
-

@@ -235,6 +235,7 @@ public sealed class BackofficeUserItemDto
     public string? Email { get; set; }
     public string? Phone { get; set; }
     public bool IsActive { get; set; }
+    public bool CanViewClientPii { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public IReadOnlyCollection<string> Roles { get; set; } = [];
 }
@@ -245,6 +246,7 @@ public sealed class CreateBackofficeUserRequestDto
     public string Password { get; set; } = string.Empty;
     public string? Email { get; set; }
     public string? Phone { get; set; }
+    public bool CanViewClientPii { get; set; }
     public IReadOnlyCollection<string> Roles { get; set; } = [];
 }
 

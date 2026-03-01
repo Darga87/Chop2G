@@ -314,6 +314,12 @@ public sealed class BackofficeApiClient
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task ToggleSuperAdminUserClientPiiAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        using var response = await SendAuthedAsync(HttpMethod.Post, $"/api/superadmin/users/{userId:D}/toggle-client-pii", JsonContent.Create(new { }), cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
     public async Task<IReadOnlyCollection<PaymentImportItemDto>> GetImportsAsync(CancellationToken cancellationToken)
     {
         using var response = await SendAuthedAsync(HttpMethod.Get, "/api/admin/payments/imports", null, cancellationToken);

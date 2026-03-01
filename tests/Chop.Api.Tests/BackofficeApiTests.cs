@@ -204,6 +204,76 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
     }
 
     [Fact]
+    public async Task AdminClients_List_WithManagerRole_MasksPhone()
+    {
+        var adminToken = await LoginAndGetAccessTokenAsync("admin", "admin-pass");
+        var managerToken = await LoginAndGetAccessTokenAsync("manager", "manager-pass");
+        var login = $"client-{Guid.NewGuid():N}";
+        var fullName = $"PII Mask {Guid.NewGuid():N}";
+
+        using (var createRequest = CreateAuthed(HttpMethod.Post, "/api/admin/clients", adminToken))
+        {
+            createRequest.Content = JsonContent.Create(new CreateAdminClientRequestDto
+            {
+                Login = login,
+                FullName = fullName,
+                Phone = "+77017778899",
+            });
+
+            var createResponse = await _client.SendAsync(createRequest);
+            createResponse.EnsureSuccessStatusCode();
+        }
+
+        using var listRequest = CreateAuthed(
+            HttpMethod.Get,
+            $"/api/admin/clients?search={Uri.EscapeDataString(fullName)}&billing=all&debtOnly=false",
+            managerToken);
+
+        var listResponse = await _client.SendAsync(listRequest);
+        listResponse.EnsureSuccessStatusCode();
+        var list = await listResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<AdminClientItemDto>>();
+
+        var item = Assert.Single(list!);
+        Assert.Equal(fullName, item.DisplayName);
+        Assert.Equal("***-***-8899", item.ContactPhone);
+    }
+
+    [Fact]
+    public async Task AdminClients_Details_WithManagerRole_MasksPhones_AndHidesEmail()
+    {
+        var adminToken = await LoginAndGetAccessTokenAsync("admin", "admin-pass");
+        var managerToken = await LoginAndGetAccessTokenAsync("manager", "manager-pass");
+        var login = $"client-{Guid.NewGuid():N}";
+
+        Guid clientId;
+        using (var createRequest = CreateAuthed(HttpMethod.Post, "/api/admin/clients", adminToken))
+        {
+            createRequest.Content = JsonContent.Create(new CreateAdminClientRequestDto
+            {
+                Login = login,
+                FullName = "PII Details",
+                Phone = "+77013334455",
+                Email = $"{login}@example.com",
+            });
+
+            var createResponse = await _client.SendAsync(createRequest);
+            createResponse.EnsureSuccessStatusCode();
+            var created = await createResponse.Content.ReadFromJsonAsync<CreateAdminClientResponseDto>();
+            Assert.NotNull(created);
+            clientId = created!.ClientId;
+        }
+
+        using var detailsRequest = CreateAuthed(HttpMethod.Get, $"/api/admin/clients/{clientId:D}", managerToken);
+        var detailsResponse = await _client.SendAsync(detailsRequest);
+        detailsResponse.EnsureSuccessStatusCode();
+        var details = await detailsResponse.Content.ReadFromJsonAsync<AdminClientDetailsDto>();
+
+        Assert.NotNull(details);
+        Assert.Null(details!.Email);
+        Assert.Contains(details.Phones, x => x.Phone == "***-***-4455");
+    }
+
+    [Fact]
     public async Task AuthInvitationAccept_CreatedClient_CanSetPasswordAndLogin()
     {
         var adminToken = await LoginAndGetAccessTokenAsync("admin", "admin-pass");
@@ -971,6 +1041,136 @@ public sealed class BackofficeApiTests : IClassFixture<TestWebApplicationFactory
         Assert.Contains("identity.user.role.add", auditRows);
         Assert.Contains("identity.user.role.remove", auditRows);
         Assert.Contains("identity.user.toggle-active", auditRows);
+    }
+
+    [Fact]
+    public async Task SuperAdmin_CanToggleClientPiiAccess_ForManagerUser()
+    {
+        var superAdminToken = await LoginAndGetAccessTokenAsync("superadmin", "superadmin-pass");
+        var adminToken = await LoginAndGetAccessTokenAsync("admin", "admin-pass");
+        var managerLogin = $"manager-pii-{Guid.NewGuid():N}";
+        const string managerPassword = "ManagerPass!123";
+
+        Guid managerUserId;
+        using (var createManagerRequest = CreateAuthed(HttpMethod.Post, "/api/superadmin/users", superAdminToken))
+        {
+            createManagerRequest.Content = JsonContent.Create(new CreateBackofficeUserRequestDto
+            {
+                Login = managerLogin,
+                Password = managerPassword,
+                Roles = ["MANAGER"],
+                CanViewClientPii = false,
+            });
+
+            var createManagerResponse = await _client.SendAsync(createManagerRequest);
+            createManagerResponse.EnsureSuccessStatusCode();
+            var createdManager = await createManagerResponse.Content.ReadFromJsonAsync<BackofficeUserItemDto>();
+            Assert.NotNull(createdManager);
+            Assert.False(createdManager!.CanViewClientPii);
+            managerUserId = createdManager.Id;
+        }
+
+        var clientLogin = $"client-{Guid.NewGuid():N}";
+        var clientName = $"PII Toggle {Guid.NewGuid():N}";
+        var phoneTail = Random.Shared.Next(1000, 9999).ToString();
+        var clientPhone = $"+7701333{phoneTail}";
+        Guid clientId;
+        using (var createClientRequest = CreateAuthed(HttpMethod.Post, "/api/admin/clients", adminToken))
+        {
+            createClientRequest.Content = JsonContent.Create(new CreateAdminClientRequestDto
+            {
+                Login = clientLogin,
+                FullName = clientName,
+                Phone = clientPhone,
+                Email = $"{clientLogin}@example.com",
+            });
+
+            var createClientResponse = await _client.SendAsync(createClientRequest);
+            createClientResponse.EnsureSuccessStatusCode();
+            var createdClient = await createClientResponse.Content.ReadFromJsonAsync<CreateAdminClientResponseDto>();
+            Assert.NotNull(createdClient);
+            clientId = createdClient!.ClientId;
+        }
+
+        var managerToken = await LoginAndGetAccessTokenAsync(managerLogin, managerPassword);
+
+        using (var maskedListRequest = CreateAuthed(
+            HttpMethod.Get,
+            $"/api/admin/clients?search={Uri.EscapeDataString(clientName)}&billing=all&debtOnly=false",
+            managerToken))
+        {
+            var maskedListResponse = await _client.SendAsync(maskedListRequest);
+            maskedListResponse.EnsureSuccessStatusCode();
+            var maskedList = await maskedListResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<AdminClientItemDto>>();
+            var maskedItem = Assert.Single(maskedList!);
+            Assert.Equal($"***-***-{phoneTail}", maskedItem.ContactPhone);
+        }
+
+        using (var maskedDetailsRequest = CreateAuthed(HttpMethod.Get, $"/api/admin/clients/{clientId:D}", managerToken))
+        {
+            var maskedDetailsResponse = await _client.SendAsync(maskedDetailsRequest);
+            maskedDetailsResponse.EnsureSuccessStatusCode();
+            var maskedDetails = await maskedDetailsResponse.Content.ReadFromJsonAsync<AdminClientDetailsDto>();
+            Assert.NotNull(maskedDetails);
+            Assert.Null(maskedDetails!.Email);
+            Assert.Contains(maskedDetails.Phones, x => x.Phone == $"***-***-{phoneTail}");
+        }
+
+        using (var togglePiiRequest = CreateAuthed(HttpMethod.Post, $"/api/superadmin/users/{managerUserId:D}/toggle-client-pii", superAdminToken))
+        {
+            togglePiiRequest.Content = JsonContent.Create(new { });
+            var togglePiiResponse = await _client.SendAsync(togglePiiRequest);
+            togglePiiResponse.EnsureSuccessStatusCode();
+        }
+
+        using (var unmaskedListRequest = CreateAuthed(
+            HttpMethod.Get,
+            $"/api/admin/clients?search={Uri.EscapeDataString(clientName)}&billing=all&debtOnly=false",
+            managerToken))
+        {
+            var unmaskedListResponse = await _client.SendAsync(unmaskedListRequest);
+            unmaskedListResponse.EnsureSuccessStatusCode();
+            var unmaskedList = await unmaskedListResponse.Content.ReadFromJsonAsync<IReadOnlyCollection<AdminClientItemDto>>();
+            var unmaskedItem = Assert.Single(unmaskedList!);
+            Assert.Equal(clientPhone, unmaskedItem.ContactPhone);
+        }
+
+        using var unmaskedDetailsRequest = CreateAuthed(HttpMethod.Get, $"/api/admin/clients/{clientId:D}", managerToken);
+        var unmaskedDetailsResponse = await _client.SendAsync(unmaskedDetailsRequest);
+        unmaskedDetailsResponse.EnsureSuccessStatusCode();
+        var unmaskedDetails = await unmaskedDetailsResponse.Content.ReadFromJsonAsync<AdminClientDetailsDto>();
+        Assert.NotNull(unmaskedDetails);
+        Assert.Equal($"{clientLogin}@example.com", unmaskedDetails!.Email);
+        Assert.Contains(unmaskedDetails.Phones, x => x.Phone == clientPhone);
+    }
+
+    [Fact]
+    public async Task Hr_CannotToggleClientPiiAccess_Returns403()
+    {
+        var superAdminToken = await LoginAndGetAccessTokenAsync("superadmin", "superadmin-pass");
+        var hrToken = await LoginAndGetAccessTokenAsync("hr", "hr-pass");
+        var login = $"manager-toggle-{Guid.NewGuid():N}";
+
+        Guid targetUserId;
+        using (var createRequest = CreateAuthed(HttpMethod.Post, "/api/superadmin/users", superAdminToken))
+        {
+            createRequest.Content = JsonContent.Create(new CreateBackofficeUserRequestDto
+            {
+                Login = login,
+                Password = "TempPass!123",
+                Roles = ["MANAGER"],
+            });
+            var createResponse = await _client.SendAsync(createRequest);
+            createResponse.EnsureSuccessStatusCode();
+            var created = await createResponse.Content.ReadFromJsonAsync<BackofficeUserItemDto>();
+            Assert.NotNull(created);
+            targetUserId = created!.Id;
+        }
+
+        using var toggleRequest = CreateAuthed(HttpMethod.Post, $"/api/superadmin/users/{targetUserId:D}/toggle-client-pii", hrToken);
+        toggleRequest.Content = JsonContent.Create(new { });
+        var response = await _client.SendAsync(toggleRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

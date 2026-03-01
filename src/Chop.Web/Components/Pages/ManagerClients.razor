@@ -38,31 +38,37 @@ else
         </div>
     </FilterToolbar>
 
-    <table class="tw-table">
-        <thead>
-            <tr>
-                <th class="tw-th">Клиент</th>
-                <th class="tw-th">Телефон</th>
-                <th class="tw-th">Тариф</th>
-                <th class="tw-th">Биллинг</th>
-                <th class="tw-th">Последний платеж</th>
-                <th class="tw-th">Долг</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var client in _clients)
-            {
-                <tr class="odd:bg-white even:bg-ink-50">
-                    <td class="tw-td">@client.DisplayName</td>
-                    <td class="tw-td whitespace-nowrap">@client.ContactPhone</td>
-                    <td class="tw-td">@client.Tariff</td>
-                    <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
-                    <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
-                    <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "Да" : "Нет")</td>
+    <TableShell HasRows="@_clients.Any()" EmptyText="Нет клиентов для выбранных фильтров.">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Клиент</th>
+                    <th class="tw-th">Телефон</th>
+                    <th class="tw-th">Тариф</th>
+                    <th class="tw-th">Биллинг</th>
+                    <th class="tw-th">Последний платеж</th>
+                    <th class="tw-th">Долг</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var client in _clients)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td">@client.DisplayName</td>
+                        <td class="tw-td whitespace-nowrap">@client.ContactPhone</td>
+                        <td class="tw-td">@client.Tariff</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@TranslateBilling(client.BillingStatus)" Tone="@BillingTone(client.BillingStatus)" />
+                        </td>
+                        <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@(client.HasDebt ? "Да" : "Нет")" Tone="@(client.HasDebt ? "danger" : "success")" />
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </TableShell>
 }
 
 @code {
@@ -119,5 +125,14 @@ else
             "DEBT" => "Долг",
             "PAUSED" => "Приостановлен",
             _ => status,
+        };
+
+    private static string BillingTone(string status) =>
+        status switch
+        {
+            "ACTIVE" => "success",
+            "DEBT" => "danger",
+            "PAUSED" => "warning",
+            _ => "neutral",
         };
 }

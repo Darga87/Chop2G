@@ -26,31 +26,33 @@ else
         </div>
     </FilterToolbar>
 
-    <table class="tw-table">
-        <thead>
-            <tr>
-                <th class="tw-th">Создан</th>
-                <th class="tw-th">Статус</th>
-                <th class="tw-th">Клиент</th>
-                <th class="tw-th">Адрес</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in _items)
-            {
-                <tr class="odd:bg-white even:bg-ink-50">
-                    <td class="tw-td whitespace-nowrap">@item.CreatedAt.ToLocalTime().ToString("g")</td>
-                    <td class="tw-td whitespace-nowrap">@TranslateStatus(item.Status)</td>
-                    <td class="tw-td">@item.ClientSummary</td>
-                    <td class="tw-td">@item.AddressSnapshot</td>
-                    <td>
-                        <a class="tw-btn-outline" href="@($"/operator/incidents/{item.Id}")">Открыть</a>
-                    </td>
+    <TableShell HasRows="@_items.Any()" EmptyText="Нет инцидентов для выбранного фильтра.">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Создан</th>
+                    <th class="tw-th">Статус</th>
+                    <th class="tw-th">Клиент</th>
+                    <th class="tw-th">Адрес</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var item in _items)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td whitespace-nowrap">@item.CreatedAt.ToLocalTime().ToString("g")</td>
+                        <td class="tw-td whitespace-nowrap">@TranslateStatus(item.Status)</td>
+                        <td class="tw-td">@item.ClientSummary</td>
+                        <td class="tw-td">@item.AddressSnapshot</td>
+                        <td>
+                            <a class="tw-btn-outline" href="@($"/operator/incidents/{item.Id}")">Открыть</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </TableShell>
 }
 
 @code {

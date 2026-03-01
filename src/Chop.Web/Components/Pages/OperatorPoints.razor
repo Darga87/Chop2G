@@ -106,36 +106,29 @@ else
         </div>
     }
 
-    <div class="tw-card mb-4">
-        <div class="tw-card-body">
-            <div class="grid gap-3 md:grid-cols-12">
-                <div class="md:col-span-5">
-                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
-                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по коду, метке, адресу" />
-                </div>
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-ink-700">Тип</label>
-                    <select class="tw-select mt-1" @bind="_type">
-                        <option value="all">Все типы</option>
-                        <option value="POST">Пост</option>
-                        <option value="SITE">Объект</option>
-                        <option value="HUB">Хаб</option>
-                    </select>
-                </div>
-                <div class="md:col-span-2 flex items-end">
-                    <label class="inline-flex items-center gap-2 text-sm text-ink-700">
-                        <input type="checkbox" class="h-4 w-4" @bind="_includeInactive" />
-                        Показать неактивные
-                    </label>
-                </div>
-                <div class="md:col-span-2 flex items-end">
-                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
-                </div>
-            </div>
+    <FilterToolbar OnRefresh="ReloadAsync">
+        <div class="md:col-span-5">
+            <label class="block text-sm font-medium text-ink-700">Поиск</label>
+            <input class="tw-input mt-1" @bind="_search" placeholder="Поиск по коду, метке, адресу" />
         </div>
-    </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-medium text-ink-700">Тип</label>
+            <select class="tw-select mt-1" @bind="_type">
+                <option value="all">Все типы</option>
+                <option value="POST">Пост</option>
+                <option value="SITE">Объект</option>
+                <option value="HUB">Хаб</option>
+            </select>
+        </div>
+        <div class="md:col-span-2 flex items-end">
+            <label class="inline-flex items-center gap-2 text-sm text-ink-700">
+                <input type="checkbox" class="h-4 w-4" @bind="_includeInactive" />
+                Показать неактивные
+            </label>
+        </div>
+    </FilterToolbar>
 
-    <div class="overflow-x-auto">
+    <TableShell HasRows="@_points.Any()" EmptyText="Нет точек для выбранных фильтров.">
         <table class="tw-table">
             <thead>
                 <tr>
@@ -160,8 +153,12 @@ else
                         <td class="tw-td whitespace-nowrap">@TranslatePointType(point.Type)</td>
                         <td class="tw-td">@point.Address</td>
                         <td class="tw-td whitespace-nowrap">@FormatGeo(point.Latitude, point.Longitude)</td>
-                        <td class="tw-td whitespace-nowrap">@(point.IsActive ? "Активна" : "Отключена")</td>
-                        <td class="tw-td whitespace-nowrap">@TranslateShiftStatus(point.ShiftStatus)</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@(point.IsActive ? "Активна" : "Отключена")" Tone="@(point.IsActive ? "success" : "warning")" />
+                        </td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@TranslateShiftStatus(point.ShiftStatus)" Tone="@ShiftStatusTone(point.ShiftStatus)" />
+                        </td>
                         <td class="tw-td whitespace-nowrap">@point.ActiveForces</td>
                         <td class="tw-td whitespace-nowrap">@point.LastEventAtUtc.ToLocalTime().ToString("g")</td>
                         <td class="tw-td whitespace-nowrap">
@@ -176,7 +173,7 @@ else
                 }
             </tbody>
         </table>
-    </div>
+    </TableShell>
 }
 
 @code {
@@ -486,6 +483,14 @@ else
             "ON_DUTY" => "На дежурстве",
             "LOW_STAFFED" => "Нехватка людей",
             _ => status,
+        };
+
+    private static string ShiftStatusTone(string status) =>
+        status switch
+        {
+            "ON_DUTY" => "success",
+            "LOW_STAFFED" => "warning",
+            _ => "neutral",
         };
 
     private static string FormatGeo(double? lat, double? lon)

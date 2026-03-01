@@ -645,6 +645,9 @@ public sealed class BackofficeController : ControllerBase
         [FromQuery] bool debtOnly,
         CancellationToken cancellationToken)
     {
+        var canViewClientPii = await CanCurrentUserViewClientPiiAsync(cancellationToken);
+        var restrictPii = !canViewClientPii;
+
         var profiles = await _dbContext.ClientProfiles
             .AsNoTracking()
             .Include(x => x.Phones)
@@ -658,7 +661,7 @@ public sealed class BackofficeController : ControllerBase
             {
                 Id = profile.Id,
                 DisplayName = profile.FullName,
-                ContactPhone = phone,
+                ContactPhone = restrictPii ? MaskPhone(phone) : phone,
                 Tariff = profile.Tariff,
                 BillingStatus = profile.BillingStatus,
                 LastPaymentAtUtc = profile.LastPaymentAtUtc,
@@ -688,6 +691,9 @@ public sealed class BackofficeController : ControllerBase
     [Authorize(Roles = "ADMIN,SUPERADMIN,MANAGER")]
     public async Task<ActionResult<AdminClientDetailsDto>> GetClientById(Guid id, CancellationToken cancellationToken)
     {
+        var canViewClientPii = await CanCurrentUserViewClientPiiAsync(cancellationToken);
+        var restrictPii = !canViewClientPii;
+
         var profile = await _dbContext.ClientProfiles
             .AsNoTracking()
             .Include(x => x.Phones)
@@ -707,7 +713,7 @@ public sealed class BackofficeController : ControllerBase
         {
             Id = profile.Id,
             DisplayName = profile.FullName,
-            Email = user?.Email,
+            Email = restrictPii ? null : user?.Email,
             Tariff = profile.Tariff,
             BillingStatus = profile.BillingStatus,
             LastPaymentAtUtc = profile.LastPaymentAtUtc,
@@ -717,7 +723,7 @@ public sealed class BackofficeController : ControllerBase
                 .ThenBy(x => x.Id)
                 .Select(x => new AdminClientPhoneItemDto
                 {
-                    Phone = x.Phone,
+                    Phone = restrictPii ? MaskPhone(x.Phone) : x.Phone,
                     Type = x.Type,
                     IsPrimary = x.IsPrimary,
                 })
@@ -1380,6 +1386,48 @@ public sealed class BackofficeController : ControllerBase
         return null;
     }
 
+    private async Task<bool> CanCurrentUserViewClientPiiAsync(CancellationToken cancellationToken)
+    {
+        if (User.IsInRole("SUPERADMIN") || User.IsInRole("ADMIN"))
+        {
+            return true;
+        }
+
+        if (!User.IsInRole("MANAGER"))
+        {
+            return false;
+        }
+
+        var actorUserId = User.GetUserId();
+        if (!Guid.TryParse(actorUserId, out var actorGuid))
+        {
+            return false;
+        }
+
+        return await _dbContext.Users
+            .AsNoTracking()
+            .Where(x => x.Id == actorGuid)
+            .Select(x => x.CanViewClientPii)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private static string MaskPhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return "-";
+        }
+
+        var digits = phone.Where(char.IsDigit).ToArray();
+        if (digits.Length <= 4)
+        {
+            return "****";
+        }
+
+        var tail = new string(digits[^4..]);
+        return $"***-***-{tail}";
+    }
+
     private static IReadOnlyCollection<AdminClientPhoneInputDto> NormalizePhones(
         IReadOnlyCollection<AdminClientPhoneInputDto>? phones,
         string? fallbackPhone)
@@ -1687,6 +1735,7 @@ public sealed class BackofficeController : ControllerBase
                 Email = x.Email,
                 Phone = x.Phone,
                 IsActive = x.IsActive,
+                CanViewClientPii = x.CanViewClientPii,
                 CreatedAtUtc = x.CreatedAtUtc,
                 Roles = x.Roles.Select(r => r.Role).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(r => r).ToArray(),
             })
@@ -1761,6 +1810,7 @@ public sealed class BackofficeController : ControllerBase
             Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email.Trim(),
             Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
             IsActive = true,
+            CanViewClientPii = request.CanViewClientPii,
             CreatedAtUtc = now,
         };
 
@@ -1799,6 +1849,7 @@ public sealed class BackofficeController : ControllerBase
             Email = user.Email,
             Phone = user.Phone,
             IsActive = user.IsActive,
+            CanViewClientPii = user.CanViewClientPii,
             CreatedAtUtc = user.CreatedAtUtc,
             Roles = roles,
         });
@@ -1921,6 +1972,31 @@ public sealed class BackofficeController : ControllerBase
             "SUPERADMIN",
             $$"""{"isActive":{{user.IsActive.ToString().ToLowerInvariant()}}}""",
             cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("superadmin/users/{userId:guid}/toggle-client-pii")]
+    [Authorize(Roles = "SUPERADMIN")]
+    public async Task<IActionResult> ToggleUserClientPiiAccess(Guid userId, CancellationToken cancellationToken)
+    {
+        var user = await _dbContext.Users.SingleOrDefaultAsync(x => x.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        user.CanViewClientPii = !user.CanViewClientPii;
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _auditLogService.WriteAsync(
+            "identity.user.pii.toggle",
+            "user",
+            userId,
+            User.GetUserId(),
+            "SUPERADMIN",
+            $$"""{"canViewClientPii":{{user.CanViewClientPii.ToString().ToLowerInvariant()}}}""",
+            cancellationToken);
+
         return NoContent();
     }
 

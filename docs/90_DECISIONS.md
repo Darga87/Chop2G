@@ -310,3 +310,26 @@
 - Rationale:
   - Улучшаем качество данных без ломки DTO/контрактов.
   - Снижаем долю ручных исправлений на карте.
+
+## DEC-031: Targeted PII override for manager contour
+- Date: 2026-02-28
+- Context: часть менеджеров должна видеть полные контакты клиентов, но базово `MANAGER` работает в masked-режиме.
+- Decision:
+  - Базовое поведение сохраняется: для `MANAGER` в `/api/admin/clients*` телефоны маскируются, email скрывается.
+  - Добавлен per-user флаг `users.CanViewClientPii` (default `false`).
+  - `SUPERADMIN` управляет флагом через `POST /api/superadmin/users/{id}/toggle-client-pii`.
+- Rationale:
+  - Даем точечный доступ без расширения роли и без ослабления глобального RBAC.
+  - Сохраняем принцип минимально необходимого доступа по умолчанию.
+
+## DEC-032: Tailwind MVP finalization (Theme Pack + Safelist policy)
+- Date: 2026-03-01
+- Context: в Task-008 нужно зафиксировать финальную тему и завершить hardening Tailwind-конфига.
+- Decision:
+  - Финальная тема MVP: `Theme Pack B` (`theme-b`) как default в приложении.
+  - `theme-a` и `theme-c` остаются как альтернативные профили без смены токенов по умолчанию.
+  - `safelist` в `tailwind.config.cjs` зафиксирован как пустой (`[]`) после аудита динамических классов.
+  - Любое будущее добавление в `safelist` — только с документированной причиной в `docs/93_TAILWIND_PLAYBOOK.md`.
+- Rationale:
+  - Стабилизировать визуальную базу UI для MVP.
+  - Избежать бесконтрольного роста CSS и скрытых зависимостей от runtime-генерации классов.

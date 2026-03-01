@@ -6,6 +6,9 @@ module.exports = {
     "./src/**/*.html",
     "./src/**/*.js",
   ],
+  // Safelist is intentionally minimal.
+  // As of 2026-03-01 no runtime-generated Tailwind utility class names are used.
+  safelist: [],
   theme: {
     extend: {
       colors: {
@@ -26,4 +29,3 @@ module.exports = {
   },
   plugins: []
 };
-

@@ -17,7 +17,6 @@ public static class RoleConstants
     public static readonly string[] OpsRoles = [Operator, Admin, SuperAdmin];
 
     public static readonly string[] HrRoles = [Hr, Admin, SuperAdmin];
-    public static readonly string[] ShiftRoles = [Operator, Hr, Admin, SuperAdmin];
 
     public static readonly string[] AdminRoles = [Admin, SuperAdmin];
 

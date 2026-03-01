@@ -28,6 +28,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .HasMaxLength(64);
 
         builder.Property(x => x.IsActive).IsRequired();
+        builder.Property(x => x.CanViewClientPii).IsRequired();
         builder.Property(x => x.CreatedAtUtc).IsRequired();
 
         builder.HasIndex(x => x.Login).IsUnique();

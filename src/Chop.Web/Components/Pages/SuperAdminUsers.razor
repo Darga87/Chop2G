@@ -1,4 +1,4 @@
-@page "/superadmin/users"
+﻿@page "/superadmin/users"
 @inject BackofficeApiClient Store
 @inject WebAuthSession Session
 @inject NavigationManager NavigationManager
@@ -87,6 +87,10 @@ else
                         }
                     </select>
                 </div>
+                <div class="md:col-span-3 flex items-center gap-2 pt-6">
+                    <input id="create-pii" type="checkbox" @bind="_createCanViewClientPii" />
+                    <label for="create-pii" class="text-sm text-ink-700">Разрешить просмотр PII клиентов</label>
+                </div>
                 <div class="md:col-span-2 flex items-end">
                     <button type="button" class="tw-btn-primary w-full" @onclick="CreateUserAsync" disabled="@_busyAction">Создать</button>
                 </div>
@@ -100,6 +104,7 @@ else
                 <th class="tw-th">Логин</th>
                 <th class="tw-th">Контакты</th>
                 <th class="tw-th">Статус</th>
+                <th class="tw-th">PII клиентов</th>
                 <th class="tw-th">Роли</th>
                 <th class="tw-th">Действия</th>
             </tr>
@@ -117,6 +122,7 @@ else
                         <div class="text-xs text-ink-600">@(string.IsNullOrWhiteSpace(user.Phone) ? "-" : user.Phone)</div>
                     </td>
                     <td class="tw-td whitespace-nowrap">@TranslateUserStatus(user.IsActive)</td>
+                    <td class="tw-td whitespace-nowrap">@(user.CanViewClientPii ? "ВКЛ" : "ВЫКЛ")</td>
                     <td class="tw-td">
                         <div class="flex flex-wrap gap-1">
                             @foreach (var role in user.Roles.OrderBy(x => x))
@@ -142,6 +148,9 @@ else
                                 }
                             </select>
                             <button type="button" class="tw-btn-outline" @onclick="() => AddRoleAsync(user.Id)" disabled="@(_busyAction || !GetAvailableRolesToAdd(user).Any())">Добавить роль</button>
+                            <button type="button" class="tw-btn-outline" @onclick="() => ToggleClientPiiAsync(user.Id)" disabled="@_busyAction">
+                                @(user.CanViewClientPii ? "Скрыть PII" : "Разрешить PII")
+                            </button>
                             <button type="button" class="@(user.IsActive ? "tw-btn-danger" : "tw-btn-secondary")" @onclick="() => RequestToggleActive(user.Id)" disabled="@(_busyAction || IsSelf(user))">
                                 @(user.IsActive ? "Деактивировать" : "Активировать")
                             </button>
@@ -217,6 +226,7 @@ else
     private string? _createEmail;
     private string? _createPhone;
     private string _createRole = "HR";
+    private bool _createCanViewClientPii;
 
     protected override async Task OnInitializedAsync()
     {
@@ -312,6 +322,7 @@ else
                 Password = _createPassword,
                 Email = _createEmail,
                 Phone = _createPhone,
+                CanViewClientPii = _createCanViewClientPii,
                 Roles = [_createRole],
             }, CancellationToken.None);
 
@@ -320,6 +331,7 @@ else
             _createEmail = null;
             _createPhone = null;
             _createRole = "HR";
+            _createCanViewClientPii = false;
             _success = "Пользователь создан.";
             ShowToast(_success, isError: false);
             await ReloadAsync();
@@ -363,6 +375,40 @@ else
 
             await Store.AddSuperAdminUserRoleAsync(userId, role, CancellationToken.None);
             _success = $"Роль {TranslateRole(role)} добавлена.";
+            ShowToast(_success, isError: false);
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            if (Chop.Web.Auth.AuthErrorRedirector.TryRedirect(ex, Session, NavigationManager))
+            {
+                return;
+            }
+
+            _error = Chop.Web.Auth.UiErrorMapper.ToUserMessage(ex);
+            ShowToast(_error, isError: true);
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private async Task ToggleClientPiiAsync(Guid userId)
+    {
+        if (_busyAction)
+        {
+            return;
+        }
+
+        _busyAction = true;
+        _error = null;
+        _success = null;
+        ClearDangerConfirmations();
+        try
+        {
+            await Store.ToggleSuperAdminUserClientPiiAsync(userId, CancellationToken.None);
+            _success = "Доступ к PII клиентов обновлен.";
             ShowToast(_success, isError: false);
             await ReloadAsync();
         }
@@ -553,5 +599,3 @@ else
         return true;
     }
 }
-
-

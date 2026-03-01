@@ -62,6 +62,8 @@ MVP вариант (минимально рискованный):
 - В логах не печатать: телефоны, адреса полностью, токены, банковские реквизиты.
 - В БД: минимально необходимые данные.
 - PII masking (operator contour): в `GET /api/operator/incidents/{id}` поле `client.phones[]` маскируется для роли `OPERATOR`; полный номер доступен только `ADMIN/SUPERADMIN`.
+- PII masking (manager contour): в `GET /api/admin/clients*` для роли `MANAGER` телефоны маскируются, `email` в деталях клиента не возвращается; полный вид — только `ADMIN/SUPERADMIN`.
+- PII override (manager contour): `SUPERADMIN` может точечно включать/выключать право просмотра PII клиентов для конкретного backoffice-пользователя через `POST /api/superadmin/users/{id}/toggle-client-pii`.
 
 ## 8. RBAC Matrix Freeze (Task-020)
 - `OPERATOR`: only incident operations (`/operator/incidents*`, `/operator/alerts*`, `/operator/forces`, `/operator/points`, `/hubs/incidents`).

@@ -16,6 +16,8 @@ public sealed class User
 
     public bool IsActive { get; set; } = true;
 
+    public bool CanViewClientPii { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 
     public UserCredential? Credential { get; set; }

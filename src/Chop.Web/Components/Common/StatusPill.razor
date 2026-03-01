@@ -1,0 +1,25 @@
+<span class="@GetClass()">
+    @Text
+</span>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Tone { get; set; } = "neutral";
+
+    private string GetClass()
+    {
+        var toneClass = Tone.ToLowerInvariant() switch
+        {
+            "success" => "bg-emerald-100 text-emerald-900 border-emerald-200",
+            "warning" => "bg-amber-100 text-amber-900 border-amber-200",
+            "danger" => "bg-rose-100 text-rose-900 border-rose-200",
+            "info" => "bg-sky-100 text-sky-900 border-sky-200",
+            _ => "bg-ink-100 text-ink-900 border-ink-200",
+        };
+
+        return $"inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold whitespace-nowrap {toneClass}";
+    }
+}

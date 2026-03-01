@@ -38,37 +38,43 @@ else
         </div>
     </FilterToolbar>
 
-    <table class="tw-table">
-        <thead>
-            <tr>
-                <th class="tw-th">Позывной</th>
-                <th class="tw-th">ФИО</th>
-                <th class="tw-th">Роль</th>
-                <th class="tw-th">Группа</th>
-                <th class="tw-th">Пост</th>
-                <th class="tw-th">Контакты</th>
-                <th class="tw-th">Доступность</th>
-                <th class="tw-th">Присутствие</th>
-                <th class="tw-th">Последняя гео</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var force in _forces)
-            {
-                <tr class="odd:bg-white even:bg-ink-50">
-                    <td class="tw-td whitespace-nowrap font-medium">@force.CallSign</td>
-                    <td class="tw-td">@force.FullName</td>
-                    <td class="tw-td whitespace-nowrap">@force.Role</td>
-                    <td class="tw-td">@force.Unit</td>
-                    <td class="tw-td">@force.Post</td>
-                    <td class="tw-td whitespace-nowrap">@($"{force.Phone} / {force.Radio}")</td>
-                    <td class="tw-td whitespace-nowrap">@force.Availability</td>
-                    <td class="tw-td whitespace-nowrap">@(force.IsOnline ? "ОНЛАЙН" : "ОФФЛАЙН")</td>
-                    <td class="tw-td whitespace-nowrap">@force.LastLocationAtUtc.ToLocalTime().ToString("g")</td>
+    <TableShell HasRows="@_forces.Any()" EmptyText="Нет данных по силам для выбранных фильтров.">
+        <table class="tw-table">
+            <thead>
+                <tr>
+                    <th class="tw-th">Позывной</th>
+                    <th class="tw-th">ФИО</th>
+                    <th class="tw-th">Роль</th>
+                    <th class="tw-th">Группа</th>
+                    <th class="tw-th">Пост</th>
+                    <th class="tw-th">Контакты</th>
+                    <th class="tw-th">Доступность</th>
+                    <th class="tw-th">Присутствие</th>
+                    <th class="tw-th">Последняя гео</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var force in _forces)
+                {
+                    <tr class="odd:bg-white even:bg-ink-50">
+                        <td class="tw-td whitespace-nowrap font-medium">@force.CallSign</td>
+                        <td class="tw-td">@force.FullName</td>
+                        <td class="tw-td whitespace-nowrap">@force.Role</td>
+                        <td class="tw-td">@force.Unit</td>
+                        <td class="tw-td">@force.Post</td>
+                        <td class="tw-td whitespace-nowrap">@($"{force.Phone} / {force.Radio}")</td>
+                    <td class="tw-td whitespace-nowrap">
+                        <StatusPill Text="@force.Availability" Tone="@AvailabilityTone(force.Availability)" />
+                    </td>
+                    <td class="tw-td whitespace-nowrap">
+                        <StatusPill Text="@(force.IsOnline ? "ОНЛАЙН" : "ОФФЛАЙН")" Tone="@(force.IsOnline ? "success" : "neutral")" />
+                    </td>
+                        <td class="tw-td whitespace-nowrap">@force.LastLocationAtUtc.ToLocalTime().ToString("g")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </TableShell>
 }
 
 @code {
@@ -118,6 +124,15 @@ else
             _loading = false;
         }
     }
+
+    private static string AvailabilityTone(string availability) =>
+        availability switch
+        {
+            "AVAILABLE" => "success",
+            "BUSY" => "warning",
+            "OFFLINE" => "neutral",
+            _ => "info",
+        };
 }
 
 
