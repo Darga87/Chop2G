@@ -25,5 +25,11 @@ jobs:
       - name: Build Tailwind CSS
         run: npm run build:css
 
+      - name: Anti-Bootstrap guard
+        run: pwsh ./scripts/ci/check-no-bootstrap.ps1
+
+      - name: CSS size budget
+        run: pwsh ./scripts/ci/check-css-budget.ps1 -MaxWebKb 128 -MaxMobileKb 128
+
       - name: Verify generated CSS is committed
         run: git diff --exit-code -- src/Chop.Web/wwwroot/app.css src/Chop.App.Mobile/wwwroot/app.css

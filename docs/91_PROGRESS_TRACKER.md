@@ -1,4 +1,4 @@
-# 91_PROGRESS_TRACKER
+﻿# 91_PROGRESS_TRACKER
 
 Цель: управленческий трекер реализации — что уже сделано и что предстоит сделать.
 
@@ -99,6 +99,7 @@
 - [x] Исправлена секция SignalR в `docs/03_API.md` (группы и события MVP без mojibake)
 - [x] Восстановлен UTF-8 в `tests/Chop.Api.Tests/BackofficeApiTests.cs` и `tests/Chop.Api.Tests/IncidentsAuthTests.cs` (русские данные и 1C ключи без искажений)
 - [x] Выполнен дополнительный UTF-8 sweep по `docs` и `src/Chop.Web/Components` — явных mojibake-строк не осталось
+- [x] PII/RBAC polishing: для роли `MANAGER` в `/api/admin/clients*` включено маскирование телефонов и скрытие email (полный вид остается у `ADMIN/SUPERADMIN`)
 
 ## Task-007: Data platform roadmap
 ### Планирование
@@ -157,19 +158,23 @@
 - [x] Добавлена инфраструктура переключения тем `theme-a/theme-b/theme-c` без переписывания компонентов (`src/Chop.Web/wwwroot/theme.js`)
 - [x] Добавлен UI-переключатель темы в шапке Web Console (`src/Chop.Web/Components/Layout/MainLayout.razor`)
 - [x] Добавлен dark-theme bridge для legacy utility-классов (selected rows / alert badges), чтобы убрать белые блоки и плохой контраст
+- [x] Переиспользуемый `FilterToolbar` подключен в дополнительных страницах (`/operator/points`, `/admin/clients`) для снижения дублирования layout-фильтров
+- [x] Добавлен переиспользуемый `TableShell` (empty-state + overflow wrapper) и применён в `operator/forces`, `operator/points`, `manager/clients`
+- [x] Добавлен переиспользуемый `StatusPill` и применён для унификации статусов в `admin/clients`, `manager/clients`, `operator/points`, `operator/forces`
 ### Осталось
 - [x] Добавить CI шаг сборки CSS (`npm ci && npm run build:css`) чтобы исключить “забыли собрать CSS”
 - [x] Начата декомпозиция повторяющегося UI: добавлены переиспользуемые Razor-компоненты `LoadingMessage` и `FlashMessages`, подключены на ключевых Web-страницах
 - [x] Добавлен переиспользуемый `FilterToolbar` и применён в страницах `operator/forces`, `operator/incidents`, `manager/clients`, `superadmin/audit`
-- [ ] Вынести повторяющиеся UI блоки в Razor-компоненты (таблицы/фильтры/плашки) для контроля utility-sprawl
-- [ ] Tailwind hardening: safelist для динамических классов (только при необходимости, документировать причины)
+- [x] Вынести повторяющиеся UI блоки в Razor-компоненты (таблицы/фильтры/плашки) для контроля utility-sprawl
+- [x] Tailwind hardening: safelist для динамических классов (только при необходимости, документировать причины)
 - [x] Audit на “везде Tailwind”: убраны legacy bootstrap classnames из `src/**` (в т.ч. mobile template pages/layout)
-- [ ] Зафиксировать финальный Theme Pack (A/B/C) и перенести выбранные токены из `docs/95_UI_KIT.md` в `styles/tailwind.css`
+- [x] Зафиксировать финальный Theme Pack (A/B/C) и перенести выбранные токены из `docs/95_UI_KIT.md` в `styles/tailwind.css`
 ### Риски (фиксируем, чтобы не забыть)
 - [ ] Размер CSS / performance (Web + MAUI WebView) -> ограничивать content globs, избегать dynamic classnames
 - [x] Node/npm как build-dependency -> зафиксировано в CI (`.github/workflows/tailwind-css.yml`)
 - [ ] MAUI safe-area/quirks -> smoke-check перед релизом Mobile
-- [ ] Возврат Bootstrap (случайно) -> блокировать добавление bootstrap ссылок/папок при review
+- [x] Возврат Bootstrap (случайно) -> добавлен anti-bootstrap guard в CI (`scripts/ci/check-no-bootstrap.ps1`)
+- [x] Добавлен CSS perf budget в CI для `src/Chop.Web/wwwroot/app.css` и `src/Chop.App.Mobile/wwwroot/app.css` (`scripts/ci/check-css-budget.ps1`, лимит 128 KB)
 См. `docs/93_TAILWIND_PLAYBOOK.md`.
 
 ## Task-009: Operator Dashboard + Map (2 points + 2 groups)
@@ -300,15 +305,15 @@
 - [x] `POST /api/hr/shifts/start`
 - [x] `POST /api/hr/shifts/end`
 - [x] Обновлён `GET /api/hr/guards`: `OnShift/GroupName/AssignedPost/ShiftStartedAtUtc` из активных смен
-- [x] Добавлены web-страницы: `/hr/groups`, `/hr/shifts` + ссылки в меню
+- [x] Добавлены web-страницы: `/hr/groups`, `/operator/shifts` + ссылки в меню
 - [x] Добавлены интеграционные тесты API для групп и смен
 - [x] Реализован `POST /api/hr/guards` (создание охранника)
 - [x] Страница `/hr/guards` дополнена формой создания охранника
 - [x] Для охранника добавлены и сохраняются поля `ФИО` и `Позывной` (API + БД + HR UI + operator forces display)
 ### Осталось
-- [ ] Добавить редактирование профиля охранника
+- [x] Добавить редактирование профиля охранника
 - [x] Добавить базовое управление сменами/назначениями
-- [ ] Сохранить строгую изоляцию HR от payments/admin функций
+- [x] Сохранить строгую изоляцию HR от payments/admin функций
 
 ## Task-029: Security Points Management (operator/hr)
 ### Сделано
@@ -339,7 +344,7 @@
 - [x] Статусы биллинга в Web UI переведены на русский (формы/фильтры/таблицы)
 - [x] Поле `Тариф` в `/admin/clients` переведено на dropdown из backend-справочника тарифов
 ### Осталось
-- [ ] Task-023 закрыт; расширение billing-модели вынесено в отдельный backlog task
+- [x] Task-023 закрыт; расширение billing-модели вынесено в отдельный backlog task
 
 ## Task-030: Tariffs Management (SUPERADMIN)
 ### Сделано
@@ -389,7 +394,7 @@
 - [x] HR UI: добавлено создание охранников на `/hr/guards`
 - [x] HR UI: редактирование профиля охранника (`ФИО/позывной/телефон/email`) через `PUT /api/hr/guards/{id}`
 - [x] HR UI: быстрые действия по сменам на `/hr/guards` (старт/завершение смены, выбор группы/поста при старте)
-- [x] UX cleanup: actions по сменам удалены из `/hr/guards`, управление сменами оставлено только во вкладке `/hr/shifts`
+- [x] UX cleanup: actions по сменам удалены из `/hr/guards`, управление сменами оставлено только во вкладке `/operator/shifts`
 - [x] UX cleanup `/hr/guards`: убраны постоянные вторые строки в таблице (показываются только при редактировании), информация о старте смены перенесена в колонку "Смена"
 - [x] Admin UI: создание/редактирование клиентов (базовый CRUD: профиль, контакты, HOME-адрес, billing-поля)
 - [x] Admin UI: расширенный CRUD клиентов (мульти-телефоны и мульти-адреса в форме + загрузка деталей клиента `GET /api/admin/clients/{id}`)
@@ -411,3 +416,14 @@
 - [ ] API error catalog (единый список кодов ошибок для frontend/mobile)
 - [ ] Incident SLA alerts (время без назначения, время до принятия, время до закрытия)
 - [ ] Local dev bootstrap: документировать обязательные зависимости (Postgres service, порты) и типовые ошибки запуска (см. `docs/94_LOCAL_DEV.md`)
+
+## Task-031: PII override per user (SUPERADMIN)
+### Сделано
+- [x] Добавлен флаг `users.CanViewClientPii` (EF + миграция `UserClientPiiAccessFlag`).
+- [x] Добавлен endpoint `POST /api/superadmin/users/{id}/toggle-client-pii`.
+- [x] В `/api/admin/clients*` включена проверка per-user флага для роли `MANAGER`.
+- [x] Обновлены web-контракты и UI `/superadmin/users` (показ статуса и переключение доступа к PII).
+- [x] Добавлены интеграционные тесты на toggle PII и RBAC-запрет для не-superadmin.
+### Осталось
+- [ ] Нет открытых пунктов по Task-031.
+

@@ -84,28 +84,29 @@
                 </div>
                 @for (var i = 0; i < _form.Phones.Count; i++)
                 {
-                    var row = _form.Phones[i];
+                    var rowIndex = i;
+                    var row = _form.Phones[rowIndex];
                     <div class="mb-2 grid gap-2 md:grid-cols-12">
                         <div class="md:col-span-5">
                             <input class="tw-input" @bind="row.Phone" placeholder="+77010000000" />
                         </div>
                         <div class="md:col-span-4">
                             <select class="tw-select" @bind="row.Type">
-                                <option value="PRIMARY">PRIMARY</option>
-                                <option value="MOBILE">MOBILE</option>
-                                <option value="HOME">HOME</option>
-                                <option value="WORK">WORK</option>
-                                <option value="OTHER">OTHER</option>
+                                <option value="PRIMARY">Основной</option>
+                                <option value="MOBILE">Мобильный</option>
+                                <option value="HOME">Домашний</option>
+                                <option value="WORK">Рабочий</option>
+                                <option value="OTHER">Другой</option>
                             </select>
                         </div>
                         <div class="md:col-span-2 flex items-center">
                             <label class="flex items-center gap-2 text-xs text-ink-700">
-                                <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryPhone(i)" />
+                                <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryPhone(rowIndex)" />
                                 <span>Основной</span>
                             </label>
                         </div>
                         <div class="md:col-span-1">
-                            <button type="button" class="tw-btn-danger w-full" @onclick="() => RemovePhone(i)">x</button>
+                            <button type="button" class="tw-btn-danger w-full" @onclick="() => RemovePhone(rowIndex)">x</button>
                         </div>
                     </div>
                 }
@@ -118,17 +119,28 @@
                 </div>
                 @for (var i = 0; i < _form.Addresses.Count; i++)
                 {
-                    var row = _form.Addresses[i];
+                    var rowIndex = i;
+                    var row = _form.Addresses[rowIndex];
                     <div class="mb-2 rounded-md border border-ink-200 p-2">
                         <div class="mb-2 grid gap-2 md:grid-cols-12">
                             <div class="md:col-span-3">
-                                <input class="tw-input" @bind="row.Label" placeholder="HOME" />
+                                <select class="tw-select" @bind="row.Label">
+                                    <option value="HOME">Дом</option>
+                                    <option value="OFFICE">Офис</option>
+                                    <option value="WAREHOUSE">Склад</option>
+                                    <option value="GARAGE">Гараж</option>
+                                    <option value="APARTMENT">Квартира</option>
+                                    <option value="COUNTRY_HOUSE">Загородный дом</option>
+                                    <option value="SHOP">Магазин</option>
+                                    <option value="PARKING">Парковка</option>
+                                    <option value="OTHER">Другое</option>
+                                </select>
                             </div>
                             <div class="md:col-span-7">
                                 <input class="tw-input" @bind="row.AddressText" placeholder="г. Алматы, ул. Назарбаева, 10" />
                             </div>
                             <div class="md:col-span-2">
-                                <button type="button" class="tw-btn-danger w-full" @onclick="() => RemoveAddress(i)">x</button>
+                                <button type="button" class="tw-btn-danger w-full" @onclick="() => RemoveAddress(rowIndex)">x</button>
                             </div>
                         </div>
                         <div class="grid gap-2 md:grid-cols-12">
@@ -140,7 +152,7 @@
                             </div>
                             <div class="md:col-span-4 flex items-center">
                                 <label class="flex items-center gap-2 text-xs text-ink-700">
-                                    <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryAddress(i)" />
+                                    <input type="radio" checked="@row.IsPrimary" @onchange="() => SetPrimaryAddress(rowIndex)" />
                                     <span>Основной</span>
                                 </label>
                             </div>
@@ -167,36 +179,29 @@
 }
 else
 {
-    <div class="tw-card mb-4">
-        <div class="tw-card-body">
-            <div class="grid gap-3 md:grid-cols-12">
-                <div class="md:col-span-4">
-                    <label class="block text-sm font-medium text-ink-700">Поиск</label>
-                    <input class="tw-input mt-1" @bind="_search" placeholder="Поиск клиента" />
-                </div>
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-ink-700">Биллинг</label>
-                    <select class="tw-select mt-1" @bind="_billing">
-                        <option value="all">Все статусы биллинга</option>
-                        <option value="ACTIVE">Активен</option>
-                        <option value="DEBT">Долг</option>
-                        <option value="PAUSED">Приостановлен</option>
-                    </select>
-                </div>
-                <div class="md:col-span-3 flex items-end">
-                    <label class="flex items-center gap-2 text-sm text-ink-700">
-                        <input id="debtOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_debtOnly" />
-                        <span>Только с долгом</span>
-                    </label>
-                </div>
-                <div class="md:col-span-2 flex items-end">
-                    <button type="button" class="tw-btn-outline w-full" @onclick="ReloadAsync">Обновить</button>
-                </div>
-            </div>
+    <FilterToolbar OnRefresh="ReloadAsync">
+        <div class="md:col-span-4">
+            <label class="block text-sm font-medium text-ink-700">Поиск</label>
+            <input class="tw-input mt-1" @bind="_search" placeholder="Поиск клиента" />
         </div>
-    </div>
+        <div class="md:col-span-3">
+            <label class="block text-sm font-medium text-ink-700">Биллинг</label>
+            <select class="tw-select mt-1" @bind="_billing">
+                <option value="all">Все статусы биллинга</option>
+                <option value="ACTIVE">Активен</option>
+                <option value="DEBT">Долг</option>
+                <option value="PAUSED">Приостановлен</option>
+            </select>
+        </div>
+        <div class="md:col-span-3 flex items-end">
+            <label class="flex items-center gap-2 text-sm text-ink-700">
+                <input id="debtOnly" class="h-4 w-4 rounded border-ink-300 text-sky-600 focus:ring-sky-200" type="checkbox" @bind="_debtOnly" />
+                <span>Только с долгом</span>
+            </label>
+        </div>
+    </FilterToolbar>
 
-    <div class="overflow-x-auto">
+    <TableShell HasRows="@_clients.Any()" EmptyText="Нет клиентов для выбранных фильтров.">
         <table class="tw-table min-w-full">
             <thead>
                 <tr>
@@ -216,9 +221,13 @@ else
                         <td class="tw-td">@client.DisplayName</td>
                         <td class="tw-td whitespace-nowrap">@client.ContactPhone</td>
                         <td class="tw-td">@client.Tariff</td>
-                        <td class="tw-td whitespace-nowrap">@TranslateBilling(client.BillingStatus)</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@TranslateBilling(client.BillingStatus)" Tone="@BillingTone(client.BillingStatus)" />
+                        </td>
                         <td class="tw-td whitespace-nowrap">@client.LastPaymentAtUtc.ToLocalTime().ToString("g")</td>
-                        <td class="tw-td whitespace-nowrap">@(client.HasDebt ? "ДА" : "НЕТ")</td>
+                        <td class="tw-td whitespace-nowrap">
+                            <StatusPill Text="@(client.HasDebt ? "ДА" : "НЕТ")" Tone="@(client.HasDebt ? "danger" : "success")" />
+                        </td>
                         <td class="tw-td whitespace-nowrap">
                             <button type="button" class="tw-btn-outline" @onclick="() => StartEditAsync(client.Id)">Редактировать</button>
                         </td>
@@ -226,7 +235,7 @@ else
                 }
             </tbody>
         </table>
-    </div>
+    </TableShell>
 }
 
 @code {
@@ -557,6 +566,15 @@ else
             "DEBT" => "Долг",
             "PAUSED" => "Приостановлен",
             _ => status,
+        };
+
+    private static string BillingTone(string status) =>
+        status switch
+        {
+            "ACTIVE" => "success",
+            "DEBT" => "danger",
+            "PAUSED" => "warning",
+            _ => "neutral",
         };
 
     private sealed class EditClientForm

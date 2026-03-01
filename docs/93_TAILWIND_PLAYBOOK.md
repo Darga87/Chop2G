@@ -36,6 +36,13 @@
 - Избегать построения tailwind-utility через переменные.
 - При необходимости: `safelist` в `tailwind.config.cjs` с минимальным набором.
 
+Текущее состояние (2026-03-01):
+- В `tailwind.config.cjs` `safelist` оставлен пустым (`[]`), т.к. аудит не выявил runtime-генерации utility-классов.
+- Любое добавление в `safelist` должно сопровождаться:
+- причиной (какой динамический кейс не покрывается content-scan),
+- ссылкой на файл/экран,
+- датой в этом документе.
+
 ### 3) “Смешивание” UI-стэков (Bootstrap остатки)
 Риск: возвращение Bootstrap/частей темы приведёт к непредсказуемым стилям.
 Митигировать:
@@ -60,3 +67,17 @@
 - UI pages выглядят приемлемо с Tailwind (`tw-*`/utility classes).
 - Tailwind CSS собирается одной командой и не ломает Mobile safe-area.
 
+## CI hardening (2026-03-01)
+- Added anti-bootstrap guard script: `scripts/ci/check-no-bootstrap.ps1`.
+- Added CSS budget script: `scripts/ci/check-css-budget.ps1`.
+- Workflow `.github/workflows/tailwind-css.yml` now runs:
+  1. `npm ci`
+  2. `npm run build:css`
+  3. `pwsh ./scripts/ci/check-no-bootstrap.ps1`
+  4. `pwsh ./scripts/ci/check-css-budget.ps1 -MaxWebKb 128 -MaxMobileKb 128`
+
+Budget policy:
+- `src/Chop.Web/wwwroot/app.css` <= 128 KB
+- `src/Chop.App.Mobile/wwwroot/app.css` <= 128 KB
+
+If a legitimate bootstrap reference is required for migration/debug, it must be explicitly documented in this file and removed before merge.
