@@ -1,27 +1,36 @@
-<div class="top-row ps-3 top-bar">
-    <div class="menu-container">
-        <a class="brand-link" href="">Chop.App.Mobile</a>
+﻿@inject MobileSessionState Session
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="flex items-center justify-between gap-2">
+    <div class="text-sm font-semibold">Chop Mobile</div>
+    <div class="flex items-center gap-2 text-xs">
+        <NavLink class="tw-btn-outline" href="/login">Логин</NavLink>
+        <NavLink class="tw-btn-outline" href="/sos">SOS</NavLink>
+        @if (Session.IsAuthenticated)
+        {
+            <button class="tw-btn-danger" @onclick="SignOutAsync">Выход</button>
+        }
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="menu-toggle" />
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        Session.Changed += HandleChanged;
+        await Session.EnsureInitializedAsync();
+    }
 
-<div class="nav-scrollable" onclick="document.querySelector('.menu-toggle').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
+    private async Task SignOutAsync()
+    {
+        await Session.SignOutAsync();
+        Navigation.NavigateTo("/login", true);
+    }
+
+    private void HandleChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.Changed -= HandleChanged;
+    }
+}

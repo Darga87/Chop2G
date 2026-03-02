@@ -1,0 +1,97 @@
+﻿@page "/login"
+@inject MobileApiClient Api
+@inject MobileSessionState Session
+@inject NavigationManager Navigation
+
+<PageTitle>Логин</PageTitle>
+
+<div class="tw-card max-w-md mx-auto">
+    <div class="tw-card-body space-y-3">
+        <div>
+            <h1>Вход клиента</h1>
+            <p class="text-xs text-ink-600 mt-1">Для Android-эмулятора оставь адрес API как `http://10.0.2.2:5261`.</p>
+        </div>
+
+        <div>
+            <label class="block text-xs text-ink-600 mb-1">API Base URL</label>
+            <input class="tw-input" @bind="apiBaseUrl" />
+        </div>
+
+        <div>
+            <label class="block text-xs text-ink-600 mb-1">Логин</label>
+            <input class="tw-input" @bind="login" />
+        </div>
+
+        <div>
+            <label class="block text-xs text-ink-600 mb-1">Пароль</label>
+            <input class="tw-input" type="password" @bind="password" />
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorText))
+        {
+            <div class="tw-alert-danger">@errorText</div>
+        }
+
+        <button class="tw-btn-primary w-full" disabled="@isBusy" @onclick="SignInAsync">
+            @(isBusy ? "Вход..." : "Войти")
+        </button>
+    </div>
+</div>
+
+@code {
+    private string login = string.Empty;
+    private string password = string.Empty;
+    private string apiBaseUrl = string.Empty;
+    private string? errorText;
+    private bool isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.EnsureInitializedAsync();
+        apiBaseUrl = Session.ApiBaseUrl;
+
+        if (Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/sos", true);
+        }
+    }
+
+    private async Task SignInAsync()
+    {
+        if (string.IsNullOrWhiteSpace(login) || string.IsNullOrWhiteSpace(password))
+        {
+            errorText = "Заполни логин и пароль.";
+            return;
+        }
+
+        errorText = null;
+        isBusy = true;
+        try
+        {
+            Session.SetApiBaseUrl(apiBaseUrl);
+            var result = await Api.LoginAsync(login.Trim(), password, CancellationToken.None);
+            await Session.SignInAsync(result);
+
+            if (!Session.IsClient)
+            {
+                await Session.SignOutAsync();
+                errorText = "Эта учетная запись не CLIENT. Для мобильного клиента нужен пользователь с ролью CLIENT.";
+                return;
+            }
+
+            Navigation.NavigateTo("/sos", true);
+        }
+        catch (MobileApiException ex)
+        {
+            errorText = $"Ошибка API: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorText = $"Ошибка: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}

@@ -1,0 +1,100 @@
+﻿@page "/sos"
+@inject MobileApiClient Api
+@inject MobileSessionState Session
+@inject NavigationManager Navigation
+
+<PageTitle>SOS</PageTitle>
+
+<div class="tw-card max-w-md mx-auto">
+    <div class="tw-card-body space-y-3">
+        <div>
+            <h1>SOS тревога</h1>
+            <p class="text-xs text-ink-600 mt-1">Отправляет `POST /api/incidents` от авторизованного клиента.</p>
+        </div>
+
+        <div>
+            <label class="block text-xs text-ink-600 mb-1">Адрес/описание точки тревоги</label>
+            <textarea class="tw-input" rows="3" @bind="addressText"></textarea>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(resultText))
+        {
+            <div class="tw-alert-success break-all">@resultText</div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorText))
+        {
+            <div class="tw-alert-danger">@errorText</div>
+        }
+
+        <button class="tw-btn-danger w-full" disabled="@isBusy" @onclick="SendSosAsync">
+            @(isBusy ? "Отправка..." : "Вызвать охрану")
+        </button>
+    </div>
+</div>
+
+@code {
+    private string addressText = string.Empty;
+    private string? resultText;
+    private string? errorText;
+    private bool isBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.EnsureInitializedAsync();
+        if (!Session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+
+    private async Task SendSosAsync()
+    {
+        errorText = null;
+        resultText = null;
+        isBusy = true;
+
+        try
+        {
+            var dto = new CreateIncidentDto
+            {
+                AddressText = string.IsNullOrWhiteSpace(addressText) ? null : addressText.Trim(),
+                DeviceTimeUtc = DateTime.UtcNow,
+            };
+
+            var lastKnown = await Geolocation.Default.GetLastKnownLocationAsync();
+            if (lastKnown is not null)
+            {
+                dto.ClientLocation = new IncidentLocationDto
+                {
+                    Lat = lastKnown.Latitude,
+                    Lon = lastKnown.Longitude,
+                    AccuracyM = lastKnown.Accuracy,
+                };
+            }
+
+            var response = await Api.CreateIncidentAsync(dto, CancellationToken.None);
+            resultText = $"Тревога отправлена. IncidentId: {response.IncidentId}";
+            addressText = string.Empty;
+        }
+        catch (MobileApiException ex)
+        {
+            if (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                await Session.SignOutAsync();
+                Navigation.NavigateTo("/login", true);
+                return;
+            }
+
+            errorText = $"Ошибка API: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            errorText = $"Ошибка: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+}

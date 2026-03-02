@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Chop.App.Mobile.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Chop.App.Mobile;
 
@@ -15,6 +16,9 @@ public static class MauiProgram
 			});
 
 		builder.Services.AddMauiBlazorWebView();
+		builder.Services.AddSingleton<MobileSessionState>();
+		builder.Services.AddSingleton(new HttpClient());
+		builder.Services.AddSingleton<MobileApiClient>();
 
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();

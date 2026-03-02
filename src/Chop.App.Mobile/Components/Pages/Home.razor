@@ -1,5 +1,15 @@
 ﻿@page "/"
+@inject MobileSessionState Session
+@inject NavigationManager Navigation
 
-<h1>Hello, world!</h1>
+<div class="tw-card">
+    <div class="tw-card-body text-sm text-ink-700">Переход...</div>
+</div>
 
-Welcome to your new app.
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.EnsureInitializedAsync();
+        Navigation.NavigateTo(Session.IsAuthenticated ? "/sos" : "/login", true);
+    }
+}
