@@ -14,6 +14,14 @@ using System.Text;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+var keyPerFilePath = builder.Configuration["Secrets:KeyPerFilePath"];
+if (!string.IsNullOrWhiteSpace(keyPerFilePath))
+{
+    builder.Configuration.AddKeyPerFile(
+        directoryPath: keyPerFilePath,
+        optional: builder.Environment.IsDevelopment());
+}
+ProductionSecretsGuard.EnsureConfigured(builder.Configuration, builder.Environment);
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -50,13 +58,17 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 builder.Services.AddHealthChecks()
-    .AddCheck<OutboxLagHealthCheck>("outbox_lag");
+    .AddCheck<OutboxLagHealthCheck>("outbox_lag")
+    .AddCheck<OutboxFailuresHealthCheck>("outbox_failures");
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.Configure<PasswordHashOptions>(builder.Configuration.GetSection("Auth:PasswordHashing"));
 builder.Services.Configure<NotificationOutboxOptions>(builder.Configuration.GetSection("Notifications:Outbox"));
 builder.Services.Configure<AlertSlaOptions>(builder.Configuration.GetSection("Alerts:Sla"));
 builder.Services.Configure<PlatformReliabilityOptions>(builder.Configuration.GetSection("Platform:Reliability"));
 builder.Services.Configure<SecurityPointAddressNormalizationOptions>(builder.Configuration.GetSection("SecurityPoints:AddressNormalization"));
+builder.Services.Configure<RealtimeBusOptions>(builder.Configuration.GetSection("Realtime:Bus"));
+builder.Services.AddSingleton<OutboxMetrics>();
+builder.Services.AddSingleton<IRealtimeBusPublisher, RabbitRealtimeBusPublisher>();
 builder.Services.AddScoped<BackofficePaymentsStore>();
 builder.Services.AddHttpClient<ISecurityPointAddressNormalizer, SecurityPointAddressNormalizer>(client =>
 {
@@ -70,6 +82,7 @@ builder.Services.AddScoped<IOutboxEventPublisher, OutboxSignalREventPublisher>()
 builder.Services.AddHostedService<NotificationOutboxDispatcher>();
 builder.Services.AddHostedService<IncidentAlertSlaWorker>();
 builder.Services.AddHostedService<OutboxMessageProcessor>();
+builder.Services.AddHostedService<RealtimeBusConsumer>();
 builder.Services.AddHostedService<PlatformRetentionCleanupService>();
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();

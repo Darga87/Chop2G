@@ -379,3 +379,18 @@
 - Rationale:
   - Убираем широкую рассылку по роли оператора.
   - Сохраняем совместимость во время rolling-обновления.
+
+## DEC-037: Production hardening (secrets + realtime bus + outbox observability)
+- Date: 2026-03-02
+- Context: для стабильной production-эксплуатации Web/API нужны безопасные секреты, надежная доставка realtime-событий и мониторинг outbox.
+- Decision:
+  - Добавлен `ProductionSecretsGuard`: вне `Development` приложение стартует только при валидных `ConnectionStrings:DefaultConnection` и `Jwt:SigningKey`.
+  - Поддержан file-based secret manager через `Secrets:KeyPerFilePath` (`AddKeyPerFile`).
+  - Для realtime добавлена конфигурация `Realtime:Bus` и интеграция RabbitMQ:
+  - publisher публикует outbox-события в exchange при `Realtime:Bus:Enabled=true`;
+  - consumer читает очередь и доставляет события в SignalR группы.
+  - Добавлены `OutboxMetrics` (`published/failed/retry/lag`) и health-check `outbox_failures` (в дополнение к `outbox_lag`).
+- Rationale:
+  - Секреты не должны оставаться в appsettings для production.
+  - Realtime доставка должна быть устойчивой к перезапускам узлов.
+  - Нужен явный операционный контроль retry/failure/lag для раннего обнаружения деградации.

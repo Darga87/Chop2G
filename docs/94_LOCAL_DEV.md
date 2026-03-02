@@ -86,3 +86,17 @@ dotnet clean
 1. `npm run build:css`
 2. `dotnet build Chop2G.sln -c Release /p:UseSharedCompilation=false`
 3. `dotnet test tests/Chop.Api.Tests/Chop.Api.Tests.csproj -c Release /p:UseSharedCompilation=false`
+
+## Realtime Bus (RabbitMQ) — optional for local dev
+- By default `Realtime:Bus:Enabled=false` and API publishes directly to SignalR.
+- To test production-like flow:
+```powershell
+docker run -d --name chop-rabbit -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+```
+- Configure in `src/Chop.Api/appsettings.Development.json`:
+  - `Realtime:Bus:Enabled=true`
+  - `Realtime:Bus:HostName=127.0.0.1`
+  - `Realtime:Bus:Port=5672`
+- Health checks to monitor:
+  - `/health` -> `outbox_lag`
+  - `/health` -> `outbox_failures`

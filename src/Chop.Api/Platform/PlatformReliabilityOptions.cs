@@ -14,6 +14,12 @@ public sealed class PlatformReliabilityOptions
 
     public int OutboxLagUnhealthyThresholdSeconds { get; set; } = 120;
 
+    public int OutboxFailedLookbackMinutes { get; set; } = 15;
+
+    public int OutboxFailedUnhealthyThresholdCount { get; set; } = 25;
+
+    public int OutboxRetryWarningAttemptThreshold { get; set; } = 3;
+
     public int OutboxRetentionDays { get; set; } = 7;
 
     public int AuditRetentionDays { get; set; } = 90;

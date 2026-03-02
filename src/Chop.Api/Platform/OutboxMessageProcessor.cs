@@ -9,16 +9,19 @@ public sealed class OutboxMessageProcessor : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly PlatformReliabilityOptions _options;
+    private readonly OutboxMetrics _metrics;
     private readonly ILogger<OutboxMessageProcessor> _logger;
     private readonly Random _random = new();
 
     public OutboxMessageProcessor(
         IServiceScopeFactory scopeFactory,
         IOptions<PlatformReliabilityOptions> options,
+        OutboxMetrics metrics,
         ILogger<OutboxMessageProcessor> logger)
     {
         _scopeFactory = scopeFactory;
         _options = options.Value;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -67,10 +70,12 @@ public sealed class OutboxMessageProcessor : BackgroundService
                 message.NextAttemptAtUtc = null;
                 message.LastError = null;
                 published++;
+                _metrics.RecordPublished(message.EventType, message.PublishedAtUtc.Value - message.CreatedAtUtc);
             }
             catch (Exception ex)
             {
                 message.AttemptCount++;
+                var willRetry = message.AttemptCount < _options.OutboxMaxAttempts;
                 if (message.AttemptCount >= _options.OutboxMaxAttempts)
                 {
                     message.Status = OutboxMessageStatus.Failed;
@@ -83,6 +88,16 @@ public sealed class OutboxMessageProcessor : BackgroundService
 
                 message.LastError = ex.Message.Length > 1000 ? ex.Message[..1000] : ex.Message;
                 failed++;
+                _metrics.RecordFailed(message.EventType, willRetry);
+
+                if (willRetry && message.AttemptCount >= _options.OutboxRetryWarningAttemptThreshold)
+                {
+                    _logger.LogWarning(
+                        "Outbox message retry threshold reached. MessageId={MessageId} AttemptCount={AttemptCount} EventType={EventType}",
+                        message.Id,
+                        message.AttemptCount,
+                        message.EventType);
+                }
 
                 _logger.LogWarning(ex, "Outbox publish failed. MessageId={MessageId}", message.Id);
             }

@@ -40,8 +40,6 @@
 - [x] Настроены базовые зависимости между слоями
 - [x] Добавлен `GET /health`
 - [x] Создана базовая структура модулей (`Incidents/Auth/Payments`)
-### Осталось
-- [ ] Нет открытых пунктов по Task-001
 
 ## Task-003: Incidents API и state machine
 ### Сделано
@@ -67,7 +65,7 @@
 - [x] Rate limiting (MVP): `/api/auth/*`, `/api/guard/location/ping`
 ### Осталось
 - [x] Password policy (сложность, ротация, блокировки) — зафиксирована в `docs/04_SECURITY.md` (production baseline)
-- [ ] Финальный вынос секретов в production secret manager (без dev-следов)
+- [x] Финальный вынос секретов в production secret manager (fail-fast guard + `Secrets:KeyPerFilePath` для non-Development)
 
 ## Task-005: SignalR realtime
 ### Сделано
@@ -128,8 +126,8 @@
 - [x] Hardening: `NextAttemptAt`, `LastError`, exponential backoff + jitter
 - [x] Hardening: health check `outbox_lag` + publisher abstraction
 ### Осталось по Task-007
-- [ ] Подключить реальный брокер/шину в publish-контур (сейчас абстракция готова, интеграция минимальная)
-- [ ] Метрики и алерты по retry/failure/lag в операционном мониторинге
+- [x] Подключить реальный брокер/шину в publish-контур (`Realtime:Bus` + RabbitMQ publisher/consumer; fallback в прямой SignalR при disabled)
+- [x] Метрики и алерты по retry/failure/lag в операционном мониторинге (`OutboxMetrics` + health checks `outbox_lag`/`outbox_failures`)
 
 ## Task-PAY: Payments
 ### Сделано
@@ -426,6 +424,4 @@
 - [x] В `/api/admin/clients*` включена проверка per-user флага для роли `MANAGER`.
 - [x] Обновлены web-контракты и UI `/superadmin/users` (показ статуса и переключение доступа к PII).
 - [x] Добавлены интеграционные тесты на toggle PII и RBAC-запрет для не-superadmin.
-### Осталось
-- [ ] Нет открытых пунктов по Task-031.
 
