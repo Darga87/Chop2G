@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Chop.Shared.Contracts.Realtime;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -34,7 +35,9 @@ public sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.NameIdentifier, userId),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
         };
-        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
+        var distinctRoles = roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        claims.AddRange(distinctRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(BuildScopeClaims(distinctRoles));
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,
@@ -47,5 +50,24 @@ public sealed class JwtTokenService : IJwtTokenService
         var tokenValue = new JwtSecurityTokenHandler().WriteToken(token);
         var expiresInSeconds = (int)(expires - now).TotalSeconds;
         return (tokenValue, expiresInSeconds);
+    }
+
+    private static IEnumerable<Claim> BuildScopeClaims(IReadOnlyCollection<string> roles)
+    {
+        var isOpsUser = roles.Contains("OPERATOR", StringComparer.OrdinalIgnoreCase)
+            || roles.Contains("ADMIN", StringComparer.OrdinalIgnoreCase)
+            || roles.Contains("SUPERADMIN", StringComparer.OrdinalIgnoreCase);
+
+        if (!isOpsUser)
+        {
+            return [];
+        }
+
+        return
+        [
+            new Claim(IncidentRealtimeGroups.ClientScopeClaim, IncidentRealtimeGroups.ScopeAll),
+            new Claim(IncidentRealtimeGroups.RegionScopeClaim, IncidentRealtimeGroups.ScopeAll),
+            new Claim(IncidentRealtimeGroups.ShiftScopeClaim, IncidentRealtimeGroups.ScopeAll),
+        ];
     }
 }

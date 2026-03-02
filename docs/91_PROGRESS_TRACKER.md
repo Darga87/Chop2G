@@ -78,7 +78,7 @@
 - [x] Scoped routing phase 1: добавлены incident-scopes (`scope:incident:{id}`) + Hub методы `SubscribeIncident/UnsubscribeIncident` + web-подписка страниц оператора
 - [x] Payload realtime-событий расширен `scope`-метаданными (`incidentId/clientUserId/regionCode/shiftKey`)
 ### Осталось
-- [ ] Полностью перевести operator-поток на operational scopes по клиентам/регионам/сменам (с выдачей scope claims в JWT и policy mapping)
+- [x] Полностью перевести operator-поток на operational scopes по клиентам/регионам/сменам (с выдачей scope claims в JWT и policy mapping)
 
 ## Task-006: Web Console
 ### Сделано

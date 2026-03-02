@@ -255,6 +255,11 @@ Auth: JWT, роли `OPERATOR/ADMIN/SUPERADMIN`.
 - `scope:client:{clientUserId}` / `scope:region:{regionCode}` / `scope:shift:{shiftKey}` — дополнительные scope-группы (подключаются по claims `ops_client_scope` / `ops_region_scope` / `ops_shift_scope`).
 - `ops:*` — legacy fallback (для `ADMIN/SUPERADMIN`).
 
+Scope claims в JWT (ops-roles):
+- `ops_client_scope`: `all` (или конкретный client scope)
+- `ops_region_scope`: `all` (или конкретный region scope)
+- `ops_shift_scope`: `all` (или конкретный shift scope)
+
 Методы Hub:
 - `SubscribeIncident(incidentId)` — подписка на scoped-поток конкретного инцидента.
 - `UnsubscribeIncident(incidentId)` — отписка от scoped-потока инцидента.

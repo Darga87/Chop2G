@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.IdentityModel.Tokens.Jwt;
 using Chop.Shared.Contracts.Auth;
+using Chop.Shared.Contracts.Realtime;
 
 namespace Chop.Api.Tests;
 
@@ -44,5 +46,25 @@ public sealed class AuthRefreshSecurityTests : IClassFixture<TestWebApplicationF
             RefreshToken = firstRefreshPayload!.RefreshToken,
         });
         Assert.Equal(HttpStatusCode.Unauthorized, chainTokenAttempt.StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_OperatorToken_ContainsOpsScopeClaims()
+    {
+        var loginResponse = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequestDto
+        {
+            Login = "operator",
+            Password = "operator-pass",
+        });
+        loginResponse.EnsureSuccessStatusCode();
+        var loginPayload = await loginResponse.Content.ReadFromJsonAsync<LoginResponseDto>();
+        Assert.NotNull(loginPayload);
+
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(loginPayload!.AccessToken);
+        var claims = token.Claims.ToArray();
+
+        Assert.Contains(claims, x => x.Type == IncidentRealtimeGroups.ClientScopeClaim && x.Value == IncidentRealtimeGroups.ScopeAll);
+        Assert.Contains(claims, x => x.Type == IncidentRealtimeGroups.RegionScopeClaim && x.Value == IncidentRealtimeGroups.ScopeAll);
+        Assert.Contains(claims, x => x.Type == IncidentRealtimeGroups.ShiftScopeClaim && x.Value == IncidentRealtimeGroups.ScopeAll);
     }
 }

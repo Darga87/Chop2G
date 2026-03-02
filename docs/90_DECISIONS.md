@@ -367,3 +367,15 @@
 - Rationale:
   - Уменьшение риска хранения лишних PII/техданных.
   - Предсказуемая эксплуатация и контроль роста БД.
+
+## DEC-036: SignalR scoped routing (phase 2)
+- Date: 2026-03-01
+- Context: требуется завершить переход operator realtime с role-broadcast на operational scopes.
+- Decision:
+  - В JWT для ops-ролей выдаются scope-claims: `ops_client_scope`, `ops_region_scope`, `ops_shift_scope`.
+  - Default policy для ops-ролей: значение `all` по каждому scope.
+  - Publisher маршрутизирует realtime события по scope-группам (`scope:client/*`, `scope:region/*`, `scope:shift/*`, `scope:incident/*`).
+  - `role:OPERATOR` оставлен как backward fallback только для legacy payload без `scope`.
+- Rationale:
+  - Убираем широкую рассылку по роли оператора.
+  - Сохраняем совместимость во время rolling-обновления.

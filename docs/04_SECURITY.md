@@ -73,6 +73,9 @@ MVP вариант (минимально рискованный):
 - `ADMIN`: incidents + clients + payments, no `SUPERADMIN` endpoints.
 - `SUPERADMIN`: full access including `/api/superadmin/*`, audit, system settings.
 - Отдельный артефакт по Web-доступам (страницы/действия/поля): `docs/98_RBAC_MATRIX_WEB.md`.
+- Realtime scope-policy:
+  - JWT ops-claims: `ops_client_scope`, `ops_region_scope`, `ops_shift_scope`.
+  - Hub маршрутизирует события по `scope:client/*`, `scope:region/*`, `scope:shift/*`, `scope:incident/*`.
 
 ## 9. Backoffice Identity Admin Rules (Task-021)
 - Backoffice user lifecycle is managed only by `SUPERADMIN` endpoints `/api/superadmin/users*`.

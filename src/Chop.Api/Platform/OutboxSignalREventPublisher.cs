@@ -27,14 +27,14 @@ public sealed class OutboxSignalREventPublisher : IOutboxEventPublisher
         };
 
         var payload = JsonSerializer.Deserialize<JsonElement>(payloadJson);
-        foreach (var destination in ResolveDestinations(eventType, payload))
+        foreach (var destination in ResolveDestinations(payload))
         {
             await _hubContext.Clients.Group(destination)
                 .SendAsync(method, payload, cancellationToken);
         }
     }
 
-    private static IReadOnlyCollection<string> ResolveDestinations(string eventType, JsonElement payload)
+    private static IReadOnlyCollection<string> ResolveDestinations(JsonElement payload)
     {
         var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -42,11 +42,7 @@ public sealed class OutboxSignalREventPublisher : IOutboxEventPublisher
             IncidentRealtimeGroups.SuperAdminRole,
         };
 
-        if (eventType.Equals("realtime.incident-created", StringComparison.OrdinalIgnoreCase))
-        {
-            result.Add(IncidentRealtimeGroups.OperatorRole);
-        }
-        else if (TryReadScope(payload, out var scope))
+        if (TryReadScope(payload, out var scope))
         {
             if (scope.IncidentId is Guid incidentId)
             {
@@ -57,16 +53,19 @@ public sealed class OutboxSignalREventPublisher : IOutboxEventPublisher
             {
                 result.Add(IncidentRealtimeGroups.ClientScope(scope.ClientUserId));
             }
+            result.Add(IncidentRealtimeGroups.ClientScopeAll());
 
             if (!string.IsNullOrWhiteSpace(scope.RegionCode))
             {
                 result.Add(IncidentRealtimeGroups.RegionScope(scope.RegionCode));
             }
+            result.Add(IncidentRealtimeGroups.RegionScopeAll());
 
             if (!string.IsNullOrWhiteSpace(scope.ShiftKey))
             {
                 result.Add(IncidentRealtimeGroups.ShiftScope(scope.ShiftKey));
             }
+            result.Add(IncidentRealtimeGroups.ShiftScopeAll());
         }
         else
         {

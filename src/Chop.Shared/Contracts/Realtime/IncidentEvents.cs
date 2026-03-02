@@ -12,6 +12,14 @@ public static class IncidentRealtimeGroups
 
     public const string SuperAdminRole = "role:SUPERADMIN";
 
+    public const string ScopeAll = "all";
+
+    public const string ClientScopeClaim = "ops_client_scope";
+
+    public const string RegionScopeClaim = "ops_region_scope";
+
+    public const string ShiftScopeClaim = "ops_shift_scope";
+
     public static string IncidentScope(Guid incidentId) => $"scope:incident:{incidentId:D}";
 
     public static string ClientScope(string clientUserId) => $"scope:client:{clientUserId}";
@@ -19,6 +27,12 @@ public static class IncidentRealtimeGroups
     public static string RegionScope(string regionCode) => $"scope:region:{regionCode}";
 
     public static string ShiftScope(string shiftKey) => $"scope:shift:{shiftKey}";
+
+    public static string ClientScopeAll() => ClientScope(ScopeAll);
+
+    public static string RegionScopeAll() => RegionScope(ScopeAll);
+
+    public static string ShiftScopeAll() => ShiftScope(ScopeAll);
 }
 
 public sealed class RealtimeScopeDto
